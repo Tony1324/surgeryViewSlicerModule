@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.16.3...3.19.7 FATAL_ERROR)
 
-project(TestModule)
+project(SurgeryViewSlicerModule)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/TestModule")
-set(EXTENSION_CATEGORY "Examples")
-set(EXTENSION_CONTRIBUTORS "John Doe (AnyWare Corp.)")
-set(EXTENSION_DESCRIPTION "This is an example of a simple extension")
+set(EXTENSION_CATEGORY "IGT")
+set(EXTENSION_CONTRIBUTORS "Tony Zhang (AnyWare Corp.)")
+set(EXTENSION_DESCRIPTION "3D Slicer Module to communicate with Apple Vision Pro")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/TestModule.png")
 set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/TestModule/Screenshots/1.png")
 set(EXTENSION_DEPENDS "NA") # Specified as a list or "NA" if no dependencies
