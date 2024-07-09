@@ -133,14 +133,15 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         volumes.UnRegister(None)
         for i in range(volumes.GetNumberOfItems()):
             volume = volumes.GetItemAsObject(i)
-            self.volumeSelector.addItem(volume.GetName(), volume.GetID())
+            self.volumeSelector.addItem(volume.GetName(), volume)
 
     def onSendModelsButtonClicked(self):
         models = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
         
         for i in range(models.GetNumberOfItems()):
             model = models.GetItemAsObject(i)
-            # Replace this print statement with the actual sending logic
+            if "Volume Slice" in model.GetName(): 
+                continue
             self.logic.sendModel(model)
             print(f"Sending model: {model.GetName()}")
 
@@ -156,7 +157,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic.initClient(self.ip_address_input.text)
     
     def onSendVolumeButtonClicked(self) -> None:
-        volume = slicer.mrmlScene.GetNodeByID(self.volumeSelector.currentData)
+        volume = self.volumeSelector.currentData
         self.logic.sendImage(volume)
     
     def onConnection(self) -> None:
@@ -211,11 +212,12 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
     def initClient(self,ip:str) -> None:
         self.client = pyigtl.OpenIGTLinkClient(host=ip, port=18944)
         self.client.start()
-        threading.Thread(target=self._connect).start()
+        # threading.Thread(target=self._connect).start()
+        self._connect()
 
     def _connect(self) -> None:
         while not self.client.is_connected():
-            sleep(0.5)
+            sleep(0.1)
         self.onConnection()
         print("Connected to server")
 
@@ -224,7 +226,7 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         # Create a message with 32 bit int image data
         image = slicer.util.arrayFromVolume(volume)
         print(image.shape)
-        imageMessage = pyigtl.ImageMessage(image=image, device_name="VisionProModule")
+        imageMessage = pyigtl.ImageMessage(image, device_name="VisionProModule")
         self.client.send_message(imageMessage)
 
     def sendModel(self, model) -> None:
