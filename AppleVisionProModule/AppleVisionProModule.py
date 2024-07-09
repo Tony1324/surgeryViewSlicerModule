@@ -353,6 +353,7 @@ class OpenIGTLinkBase():
             message = self.outgoing_messages.popleft()
             binary_message = message.pack()
         # send
+        print(socket.timeout)
         socket.sendall(binary_message)
         return True
 
@@ -564,7 +565,6 @@ class OpenIGTLinkClient(OpenIGTLinkBase):
             # Create socket
             if self.socket is None:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(0.01)
                 self._connected = False
 
             # Reconnect if needed
