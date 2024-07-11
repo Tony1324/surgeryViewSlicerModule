@@ -152,17 +152,33 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.ip_address_input.setText(numerical)
 
     def onConnectButtonClicked(self) -> None:
-        self.logic.onConnection = self.onConnection
-        self.logic.initClient(self.ip_address_input.text)
+        if not self.connected:
+            self.logic.onConnection = self.onConnection
+            self.logic.initClient(self.ip_address_input.text)
+        else:
+            self.logic.close()
+            self.connected = False
+            self.connect_button.setText("Connect")
+            self.sendVolumeButton.setEnabled(False)
+            self.sendModelsButton.setEnabled(False)
+            self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
-        volume = self.volumeSelector.currentData
-        self.logic.sendImage(volume)
+            volume = self.volumeSelector.currentData
+            self.logic.sendImage(volume)
+    
+    def onDisconnect(self, *_) -> None:
+            self.connected = False
+            self.logic.close()
+            self.connect_button.setText("Connect")
+            self.sendVolumeButton.setEnabled(False)
+            self.sendModelsButton.setEnabled(False)
+            self.status_label.setText("Status: Not Connected")
 
-    def onConnection(self) -> None:
+    def onConnection(self, *_) -> None:
         self.connected = True
         self.status_label.setText("Status: CONNECTED")
-        self.connect_button.setEnabled(False)
+        self.connect_button.setText("Disconnect")
         self.sendVolumeButton.setEnabled(True)
         self.sendModelsButton.setEnabled(True)
 
@@ -210,10 +226,12 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
 
     def initClient(self,ip:str) -> None:
         self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
+        slicer.mrmlScene.AddNode(cnode)
         cnode.SetTypeClient(ip, 18944)
         cnode.Start()
-        slicer.mrmlScene.AddNode(cnode)
-        self.onConnection()
+        # self.onConnection()
+        cnode.AddObserver(cnode.ConnectedEvent, self.onConnection)
+        cnode.AddObserver(cnode.DisconnectedEvent, self.onConnection)
 
 
     def sendImage(self, volume) -> None:
@@ -225,17 +243,22 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.RegisterOutgoingMRMLNode(volume)
         self.connector.PushNode(volume)
 
-
-
     def sendModel(self, model) -> None:
+        color = model.GetDisplayNode().GetColor()
+        model.SetName(floatToHex(color))
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
 
-
+    def floatToHex(color):
+        r = int(color[0] * 9)
+        g = int(color[1] * 9)
+        b = int(color[2] * 9)
+        return f"{r}{g}{b}"
 
     def sendTransform(self, transform) -> None:
         # Create a message with 32 bit int image data
         self.connector.RegisterOutgoingMRMLNode(transform)
+        self.connector.PushNode(model)
 
     # def sendString(self, string: str) -> None:
     #     # Create a message with 32 bit int image data
