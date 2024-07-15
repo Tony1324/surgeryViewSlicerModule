@@ -115,16 +115,30 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.sendModelsButton.setEnabled(False)
         layout.addWidget(self.sendModelsButton)
 
+        self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
+        layout.addWidget(self.sendPointerToggle)
+
         # add vertical spacer
         layout.addStretch(1)
 
         # Create logic class instance
         self.logic = AppleVisionProModuleLogic()
 
+        
         # Connections
         # Example connections to scene events
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+        
+        crosshairNode=slicer.util.getNode("Crosshair")
+        crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
+
+    def onMouseMoved(self, observer,eventid):
+        if self.connected and self.sendPointerToggle.isChecked():
+            crosshairNode=slicer.util.getNode("Crosshair")
+            ras=[0,0,0]
+            crosshairNode.GetCursorPositionRAS(ras)
+            self.logic.sendPosition(ras)
 
     def updateVolumeSelector(self):
         self.volumeSelector.clear()
@@ -245,20 +259,28 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
 
     def sendModel(self, model) -> None:
         color = model.GetDisplayNode().GetColor()
-        model.SetName(floatToHex(color))
+        model.SetName(self.formatColor(color))
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
 
-    def floatToHex(color):
-        r = int(color[0] * 9)
-        g = int(color[1] * 9)
-        b = int(color[2] * 9)
-        return f"{r}{g}{b}"
+    def formatColor(self, color):
+        return "#{:02X}{:02X}{:02X}".format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
 
     def sendTransform(self, transform) -> None:
-        # Create a message with 32 bit int image data
         self.connector.RegisterOutgoingMRMLNode(transform)
-        self.connector.PushNode(model)
+        self.connector.PushNode(transform)
+
+    def sendPosition(self, position) -> None:
+        transform = slicer.vtkMRMLLinearTransformNode()
+        matrix = vtk.vtkMatrix4x4()
+        matrix.SetElement(0, 3, position[0])
+        matrix.SetElement(1, 3, position[1])
+        matrix.SetElement(2, 3, position[2])
+        transform.SetMatrixTransformToParent(matrix)
+        slicer.mrmlScene.AddNode(transform)
+        self.sendTransform(transform)
+        self.connector.UnregisterOutgoingMRMLNode(transform)
+        slicer.mrmlScene.RemoveNode(transform)
 
     # def sendString(self, string: str) -> None:
     #     # Create a message with 32 bit int image data
