@@ -95,29 +95,37 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Connect Button
         self.connect_button = qt.QPushButton("Connect")
         self.connect_button.clicked.connect(self.onConnectButtonClicked)
+        self.connect_button.setStyleSheet("background-color: green")
         connectionLayout.addWidget(self.connect_button)
+
+        self.dataContainer = qt.QWidget()
+        dataLayout = qt.QVBoxLayout(self.dataContainer)
+        layout.addWidget(self.dataContainer)
+        self.dataContainer.setEnabled(False)
 
         # Volume
         self.label = qt.QLabel("Select an image volume:")
-        layout.addWidget(self.label)
+        dataLayout.addWidget(self.label)
         self.volumeSelector = qt.QComboBox()
-        layout.addWidget(self.volumeSelector)
+        dataLayout.addWidget(self.volumeSelector)
         self.updateVolumeSelector()
 
         self.sendVolumeButton = qt.QPushButton("Send Volume")
-        layout.addWidget(self.sendVolumeButton)
+        dataLayout.addWidget(self.sendVolumeButton)
         self.sendVolumeButton.clicked.connect(self.onSendVolumeButtonClicked)
-        self.sendVolumeButton.setEnabled(False)
 
         #Models
         self.sendModelsButton = qt.QPushButton("Send All Models")
         self.sendModelsButton.clicked.connect(self.onSendModelsButtonClicked)
-        self.sendModelsButton.setEnabled(False)
-        layout.addWidget(self.sendModelsButton)
+        dataLayout.addWidget(self.sendModelsButton)
 
         self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
-        layout.addWidget(self.sendPointerToggle)
+        dataLayout.addWidget(self.sendPointerToggle)
 
+        self.clearAllButton = qt.QPushButton("Clear All Data")
+        self.clearAllButton.setStyleSheet("background-color: red")
+        self.clearAllButton.clicked.connect(self.onClearAllButtonClicked)
+        dataLayout.addWidget(self.clearAllButton)
         # add vertical spacer
         layout.addStretch(1)
 
@@ -132,6 +140,23 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         
         crosshairNode=slicer.util.getNode("Crosshair")
         crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
+
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+
+    def onRedSliceChanged(self, *_):
+        if self.connected:
+            self.logic.sendString(str(slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").GetSliceOffset()), "AXIAL")
+
+    def onGreenSliceChanged(self, *_):
+        if self.connected:
+            self.logic.sendString(str(slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").GetSliceOffset()), "CORONAL")
+
+    def onYellowSliceChanged(self, *_):
+        if self.connected:
+            self.logic.sendString(str(slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").GetSliceOffset()), "SAGGITAL")
+
 
     def onMouseMoved(self, observer,eventid):
         if self.connected and self.sendPointerToggle.isChecked():
@@ -173,28 +198,29 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             self.logic.close()
             self.connected = False
             self.connect_button.setText("Connect")
-            self.sendVolumeButton.setEnabled(False)
-            self.sendModelsButton.setEnabled(False)
+            self.dataContainer.setEnabled(False)
+
             self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
             volume = self.volumeSelector.currentData
             self.logic.sendImage(volume)
+
+    def onClearAllButtonClicked(self) -> None:
+        self.logic.sendString("CLEAR", "CLEAR")
     
     def onDisconnect(self, *_) -> None:
             self.connected = False
             self.logic.close()
             self.connect_button.setText("Connect")
-            self.sendVolumeButton.setEnabled(False)
-            self.sendModelsButton.setEnabled(False)
+            self.dataContainer.setEnabled(False)
             self.status_label.setText("Status: Not Connected")
 
     def onConnection(self, *_) -> None:
         self.connected = True
         self.status_label.setText("Status: CONNECTED")
         self.connect_button.setText("Disconnect")
-        self.sendVolumeButton.setEnabled(True)
-        self.sendModelsButton.setEnabled(True)
+        self.dataContainer.setEnabled(True)
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
@@ -282,10 +308,18 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.UnregisterOutgoingMRMLNode(transform)
         slicer.mrmlScene.RemoveNode(transform)
 
-    # def sendString(self, string: str) -> None:
-    #     # Create a message with 32 bit int image data
-    #     stringMessage = pyigtl.StringMessage(string=string, device_name="VisionProModule")
-    #     self.connector.send_message(stringMessage)
+    def sendString(self, string: str, type: str) -> None:
+        # Create a message with 32 bit int image data
+        text = slicer.vtkMRMLTextNode()
+        text.SetName(type)
+        text.SetText(string)
+        slicer.mrmlScene.AddNode(text)
+        self.connector.RegisterOutgoingMRMLNode(text)
+        self.connector.PushNode(text)
+        self.connector.UnregisterOutgoingMRMLNode(text)
+        slicer.mrmlScene.RemoveNode(text)
+        
+
 
     def close(self) -> None:
         if self.connector is not None:
