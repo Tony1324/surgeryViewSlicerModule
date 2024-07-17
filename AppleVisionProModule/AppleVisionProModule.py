@@ -142,8 +142,8 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
         slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
-        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
-        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
 
     def onRedSliceChanged(self, *_):
         if self.connected:
@@ -313,11 +313,12 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         text = slicer.vtkMRMLTextNode()
         text.SetName(type)
         text.SetText(string)
+        print(text.GetText())
         slicer.mrmlScene.AddNode(text)
         self.connector.RegisterOutgoingMRMLNode(text)
         self.connector.PushNode(text)
-        self.connector.UnregisterOutgoingMRMLNode(text)
-        slicer.mrmlScene.RemoveNode(text)
+        # self.connector.UnregisterOutgoingMRMLNode(text)
+        # slicer.mrmlScene.RemoveNode(text)
         
 
 
