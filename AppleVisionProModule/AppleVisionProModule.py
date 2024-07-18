@@ -144,6 +144,11 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
         slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
         slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
+        slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
+
+    def onCameraMoved(self, *_): 
+        self.logic.sendCameraTransform(slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").GetCamera().GetModelViewTransformMatrix())
+
 
     def onRedSliceChanged(self, *_):
         if self.connected:
@@ -163,7 +168,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             crosshairNode=slicer.util.getNode("Crosshair")
             ras=[0,0,0]
             crosshairNode.GetCursorPositionRAS(ras)
-            self.logic.sendPosition(ras)
+            self.logic.sendCursorPosition(ras)
 
     def updateVolumeSelector(self):
         self.volumeSelector.clear()
@@ -296,8 +301,9 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.RegisterOutgoingMRMLNode(transform)
         self.connector.PushNode(transform)
 
-    def sendPosition(self, position) -> None:
+    def sendCursorPosition(self, position) -> None:
         transform = slicer.vtkMRMLLinearTransformNode()
+        transform.SetName("CURSOR")
         matrix = vtk.vtkMatrix4x4()
         matrix.SetElement(0, 3, position[0])
         matrix.SetElement(1, 3, position[1])
@@ -307,18 +313,29 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.sendTransform(transform)
         self.connector.UnregisterOutgoingMRMLNode(transform)
         slicer.mrmlScene.RemoveNode(transform)
+    
+    def sendCameraTransform(self, matrix) -> None:
+        transform = slicer.vtkMRMLLinearTransformNode()
+        transform.SetName("CAMERA")
+        matrix = matrix
+        transform.SetMatrixTransformToParent(matrix)
+        slicer.mrmlScene.AddNode(transform)
+        self.sendTransform(transform)
+        self.connector.UnregisterOutgoingMRMLNode(transform)
+        slicer.mrmlScene.RemoveNode(transform)
+
+    
 
     def sendString(self, string: str, type: str) -> None:
         # Create a message with 32 bit int image data
         text = slicer.vtkMRMLTextNode()
         text.SetName(type)
         text.SetText(string)
-        print(text.GetText())
         slicer.mrmlScene.AddNode(text)
         self.connector.RegisterOutgoingMRMLNode(text)
         self.connector.PushNode(text)
-        # self.connector.UnregisterOutgoingMRMLNode(text)
-        # slicer.mrmlScene.RemoveNode(text)
+        self.connector.UnregisterOutgoingMRMLNode(text)
+        slicer.mrmlScene.RemoveNode(text)
         
 
 
