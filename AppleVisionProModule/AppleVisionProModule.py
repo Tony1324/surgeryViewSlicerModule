@@ -290,9 +290,9 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
 
     def sendModel(self, model) -> None:
         color = model.GetDisplayNode().GetColor()
-        model.SetName(self.formatColor(color))
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
+        self.sendString(model.GetName()+"---"+self.formatColor(color),"MODELCOLOR")
 
     def formatColor(self, color):
         return "#{:02X}{:02X}{:02X}".format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
