@@ -122,6 +122,9 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
         dataLayout.addWidget(self.sendPointerToggle)
 
+        self.syncCameraToggle = qt.QCheckBox("Sync Camera Orientation")
+        dataLayout.addWidget(self.syncCameraToggle)
+
         self.clearAllButton = qt.QPushButton("Clear All Data")
         self.clearAllButton.setStyleSheet("background-color: red")
         self.clearAllButton.clicked.connect(self.onClearAllButtonClicked)
@@ -131,6 +134,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
         # Create logic class instance
         self.logic = AppleVisionProModuleLogic()
+
 
         
         # Connections
@@ -147,7 +151,8 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
 
     def onCameraMoved(self, *_): 
-        self.logic.sendCameraTransform(slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").GetCamera().GetModelViewTransformMatrix())
+        if self.connected and self.syncCameraToggle.isChecked():
+            self.logic.sendCameraTransform(slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").GetCamera().GetModelViewTransformMatrix())
 
 
     def onRedSliceChanged(self, *_):
@@ -291,10 +296,17 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
     def sendModel(self, model) -> None:
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
+        self.sendModelDisplayProperties(model)
+        model.AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
+
+    def sendModelDisplayProperties(self, model) -> None:
+        print("sending")
         color = model.GetDisplayNode().GetColor()
         self.sendString(model.GetName()+"---"+self.formatColor(color),"MODELCOLOR")
         opacity = model.GetDisplayNode().GetOpacity()  if model.GetDisplayNode().GetVisibility() else 0
         self.sendString(model.GetName()+"---"+str(opacity),"MODELVISIBILITY")
+    
+
 
     def formatColor(self, color):
         return "#{:02X}{:02X}{:02X}".format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
