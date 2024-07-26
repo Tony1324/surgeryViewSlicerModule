@@ -297,7 +297,7 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
         self.sendModelDisplayProperties(model)
-        model.AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
+        model.GetDisplayNode().AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
 
     def sendModelDisplayProperties(self, model) -> None:
         print("sending")
@@ -305,8 +305,6 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.sendString(model.GetName()+"---"+self.formatColor(color),"MODELCOLOR")
         opacity = model.GetDisplayNode().GetOpacity()  if model.GetDisplayNode().GetVisibility() else 0
         self.sendString(model.GetName()+"---"+str(opacity),"MODELVISIBILITY")
-    
-
 
     def formatColor(self, color):
         return "#{:02X}{:02X}{:02X}".format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
