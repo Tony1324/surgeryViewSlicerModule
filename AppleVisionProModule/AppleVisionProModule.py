@@ -142,13 +142,18 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
         
-        crosshairNode=slicer.util.getNode("Crosshair")
-        crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
+        self.crosshairNode=slicer.util.getNode("Crosshair")
+        self.crosshairNodeObserver = self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
-        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
-        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
-        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
-        slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
+        self.greenSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen")
+        self.redSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
+        self.yellowSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
+        self.redSliceObserver = self.redSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+        self.greenSliceObserver = self.greenSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
+        self.yellowSliceObserver = self.yellowSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
+
+        self.camera = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode")
+        self.cameraObserver = self.camera.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
 
     def onCameraMoved(self, *_): 
         if self.connected and self.syncCameraToggle.isChecked():
@@ -234,6 +239,12 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
+        self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
+        self.redSlice.RemoveObserver(self.redSliceObserver)
+        self.greenSlice.RemoveObserver(self.greenSliceObserver)
+        self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
+        self.camera.RemoveObserver(self.cameraObserver)
+        self.logic.close()
         # self.logic.close()
 
     def enter(self) -> None:
@@ -246,6 +257,11 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
+        self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
+        self.redSlice.RemoveObserver(self.redSliceObserver)
+        self.greenSlice.RemoveObserver(self.greenSliceObserver)
+        self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
+        self.camera.RemoveObserver(self.cameraObserver)
         # Parameter node will be reset, do not use it anymore
 
     def onSceneEndClose(self, caller, event) -> None:
@@ -281,7 +297,7 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         cnode.Start()
         # self.onConnection()
         cnode.AddObserver(cnode.ConnectedEvent, self.onConnection)
-        cnode.AddObserver(cnode.DisconnectedEvent, self.onConnection)
+        cnode.AddObserver(cnode.DisconnectedEvent, self.onDisconnect)
 
 
     def sendImage(self, volume) -> None:
