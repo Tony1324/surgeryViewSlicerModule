@@ -119,9 +119,14 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.sendModelsButton.clicked.connect(self.onSendModelsButtonClicked)
         dataLayout.addWidget(self.sendModelsButton)
 
+        self.showSlices = qt.QCheckBox("Show Volume Slices")
+        self.showSlices.click()
+        dataLayout.addWidget(self.showSlices)
+        self.showSlices.clicked.connect(self.onShowVolumeClicked)
+
         self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
         dataLayout.addWidget(self.sendPointerToggle)
-
+    
         self.syncCameraToggle = qt.QCheckBox("Sync Camera Orientation")
         dataLayout.addWidget(self.syncCameraToggle)
 
@@ -208,6 +213,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     def onConnectButtonClicked(self) -> None:
         if not self.connected:
             self.logic.onConnection = self.onConnection
+            self.logic.onDisconnect = self.onDisconnect
             self.logic.initClient(self.ip_address_input.text)
         else:
             self.logic.close()
@@ -218,8 +224,14 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
-            volume = self.volumeSelector.currentData
-            self.logic.sendImage(volume)
+        volume = self.volumeSelector.currentData
+        self.logic.sendImage(volume)
+
+    def onShowVolumeClicked(self) -> None:
+        if (self.showSlices.isChecked()):
+            self.logic.sendString("ENABLE","DICOM")
+        else: 
+            self.logic.sendString("DISABLE","DICOM")
 
     def onClearAllButtonClicked(self) -> None:
         self.logic.sendString("CLEAR", "CLEAR")
@@ -289,6 +301,7 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         self.connector = None
         self.onConnection = lambda: None
+        self.onDisconnect = lambda: None
 
     def initClient(self,ip:str) -> None:
         self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
