@@ -142,6 +142,22 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Example connections to scene events
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+
+        #these text nodes get modified by messages from the vision pro
+        self.axialText = slicer.vtkMRMLTextNode()
+        self.axialText.SetName("AXIAL")
+        slicer.mrmlScene.AddNode(self.axialText)
+        self.axialTextObserver = self.axialText.AddObserver(self.axialText.TextModifiedEvent, self.setAxialPosition)
+
+        self.coronalText = slicer.vtkMRMLTextNode()
+        self.coronalText.SetName("CORONAL")
+        slicer.mrmlScene.AddNode(self.coronalText)
+        self.coronalTextObserver = self.coronalText.AddObserver(self.coronalText.TextModifiedEvent, self.setCoronalPosition)
+
+        self.sagittalText = slicer.vtkMRMLTextNode()
+        self.sagittalText.SetName("SAGITTAL")
+        slicer.mrmlScene.AddNode(self.sagittalText)
+        self.sagittalTextObserver = self.sagittalText.AddObserver(self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
         
         self.crosshairNode=slicer.util.getNode("Crosshair")
         self.crosshairNodeObserver = self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
@@ -234,7 +250,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     
     def onDisconnect(self, *_) -> None:
             self.connected = False
-            self.logic.close()
+            # self.logic.close()
             self.connect_button.setText("Connect")
             self.dataContainer.setEnabled(False)
             self.status_label.setText("Status: Not Connected")
@@ -245,6 +261,22 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.connect_button.setText("Disconnect")
         self.dataContainer.setEnabled(True)
 
+    def setAxialPosition(self,*_):
+        str = self.axialText.GetText()
+        pos = float(str)
+        print(pos)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed").SetSliceOffset(pos)
+
+    def setCoronalPosition(self,*_):
+        str = self.coronalText.GetText()
+        pos = float(str)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen").SetSliceOffset(pos)
+
+    def setSagittalPosition(self,*_):
+        str = self.sagittalText.GetText()
+        pos = float(str)
+        slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").SetSliceOffset(pos)
+
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
@@ -252,6 +284,12 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.greenSlice.RemoveObserver(self.greenSliceObserver)
         self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
         self.camera.RemoveObserver(self.cameraObserver)
+        self.axialText.RemoveObserver(self.axialTextObserver)
+        self.coronalText.RemoveObserver(self.coronalTextObserver)
+        self.sagittalText.RemoveObserver(self.sagittalTextObserver)
+        slicer.mrmlScene.RemoveNode(self.axialText)
+        slicer.mrmlScene.RemoveNode(self.coronalText)
+        slicer.mrmlScene.RemoveNode(self.sagittalText)
         self.logic.close()
         # self.logic.close()
 
@@ -270,7 +308,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.greenSlice.RemoveObserver(self.greenSliceObserver)
         self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
         self.camera.RemoveObserver(self.cameraObserver)
-        # Parameter node will be reset, do not use it anymore
+        slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
@@ -305,9 +343,15 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         cnode.SetTypeClient(ip, 18944)
         cnode.Start()
         # self.onConnection()
-        cnode.AddObserver(cnode.ConnectedEvent, self.onConnection)
-        cnode.AddObserver(cnode.DisconnectedEvent, self.onDisconnect)
+        cnode.AddObserver(cnode.ConnectedEvent, self.processEvents)
+        cnode.AddObserver(cnode.DisconnectedEvent, self.processEvents)
+        cnode.SetCheckCRC(False)
 
+    def processEvents(self, *_) -> None:
+        if self.connector.GetState() == self.connector.StateConnected:
+            self.onConnection()
+        else:
+            self.onDisconnect()
 
     def sendImage(self, volume) -> None:
         # Create a message with 32 bit int image data
@@ -361,8 +405,6 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.UnregisterOutgoingMRMLNode(transform)
         slicer.mrmlScene.RemoveNode(transform)
 
-    
-
     def sendString(self, string: str, type: str) -> None:
         # Create a message with 32 bit int image data
         text = slicer.vtkMRMLTextNode()
@@ -373,10 +415,9 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.PushNode(text)
         self.connector.UnregisterOutgoingMRMLNode(text)
         slicer.mrmlScene.RemoveNode(text)
-        
-
-
+    
     def close(self) -> None:
         if self.connector is not None:
             self.connector.Stop()
+            slicer.mrmlScene.RemoveNode(self.connector)
             self.connector = None
