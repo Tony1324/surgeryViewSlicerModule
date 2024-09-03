@@ -158,6 +158,12 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.sagittalText.SetName("SAGITTAL")
         slicer.mrmlScene.AddNode(self.sagittalText)
         self.sagittalTextObserver = self.sagittalText.AddObserver(self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
+
+        self.entitySelection = slicer.vtkMRMLTextNode()
+        self.entitySelection.SetName("ENTITY")
+        slicer.mrmlScene.AddNode(self.entitySelection)
+        self.entitySelectionObserver = self.entitySelection.AddObserver(self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
+
         
         self.crosshairNode=slicer.util.getNode("Crosshair")
         self.crosshairNodeObserver = self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
@@ -277,6 +283,24 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         pos = float(str)
         slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").SetSliceOffset(pos)
 
+    def setSelectedEntity(self, *_):
+        str = self.entitySelection.GetText()
+        models = slicer.mrmlScene.GetNodesByClass("vtkMRMLModelNode")
+        e = None
+
+        for i in range(models.GetNumberOfItems()):
+            m = models.GetItemAsObject(i)
+            if m.GetName().startswith(str):
+                e = m
+
+        if hasattr(self, 'previousSelectedEntity'):
+            self.previousSelectedEntity.GetDisplayNode().SetAmbient(0)
+
+        if(e):
+            self.previousSelectedEntity = e
+            e.GetDisplayNode().SetAmbient(1.0)
+            
+
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
@@ -287,6 +311,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.axialText.RemoveObserver(self.axialTextObserver)
         self.coronalText.RemoveObserver(self.coronalTextObserver)
         self.sagittalText.RemoveObserver(self.sagittalTextObserver)
+        self.entitySelection.RemoveObserver(self.entitySelectionObserver)
         slicer.mrmlScene.RemoveNode(self.axialText)
         slicer.mrmlScene.RemoveNode(self.coronalText)
         slicer.mrmlScene.RemoveNode(self.sagittalText)
