@@ -201,7 +201,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             crosshairNode.GetCursorPositionRAS(ras)
             self.logic.sendCursorPosition(ras)
 
-    def updateVolumeSelector(self):
+    def updateVolumeSelector(self, *_):
         self.volumeSelector.clear()
         volumes = slicer.mrmlScene.GetNodesByClass('vtkMRMLScalarVolumeNode')
         volumes.UnRegister(None)

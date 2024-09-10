@@ -54,15 +54,45 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         """Called when the user opens the module the first time and the widget is initialized."""
         ScriptedLoadableModuleWidget.setup(self)
 
+        #Set slicer ui
+        slicer.util.setStatusBarVisible(False)
+        slicer.util.setToolbarsVisible(False)
+        slicer.util.setModulePanelTitleVisible(False)
+        slicer.util.setModuleHelpSectionVisible(False)
+        slicer.util.selectModule('SegmentationsHelper')
+        slicer.util.setPythonConsoleVisible(False)
+        slicer.util.setDataProbeVisible(False)
+
         # Create main widget and layout
         panelWidget = qt.QWidget()
         layout = qt.QVBoxLayout(panelWidget)
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
 
+        self.imageSelector = qt.QWidget()
+        imageSelectorLayout = qt.QVBoxLayout(self.imageSelector)
+        imageSelectText = qt.QLabel("Select an Image Volume:")
+        imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
+
+        imageSelectorLayout.addWidget(imageSelectText)
+        layout.addWidget(self.imageSelector)
+
+        self.segmentationEditor = qt.QWidget()
+        segmentationEditorLayout = qt.QVBoxLayout(self.segmentationEditor)
+        self.segmentationEditor.hide()
+        layout.addWidget(self.segmentationEditor)
+        
+
+        self.visionProInterface = qt.QWidget()
+        visionProInterfaceLayout = qt.QVBoxLayout(self.visionProInterface)
+        visionProInterfaceLayout.addWidget(slicer.modules.applevisionpromodule.widgetRepresentation())
+        self.visionProInterface.hide()
+        layout.addWidget(self.visionProInterface)
+        
+
         # Create logic class instance
         self.logic = SegmentationsHelperLogic()
-
+        layout.addStretch(1)
 
         # Connections
         # Example connections to scene events
@@ -112,91 +142,6 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
-        self.connector = None
-        self.onConnection = lambda: None
-        self.onDisconnect = lambda: None
 
-    def initClient(self,ip:str) -> None:
-        self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
-        slicer.mrmlScene.AddNode(cnode)
-        cnode.SetTypeClient(ip, 18944)
-        cnode.Start()
-        # self.onConnection()
-        cnode.AddObserver(cnode.ConnectedEvent, self.processEvents)
-        cnode.AddObserver(cnode.DisconnectedEvent, self.processEvents)
-        cnode.SetCheckCRC(False)
-
-    def processEvents(self, *_) -> None:
-        if self.connector.GetState() == self.connector.StateConnected:
-            self.onConnection()
-        else:
-            self.onDisconnect()
-
-    def sendImage(self, volume) -> None:
-        # Create a message with 32 bit int image data
-        # image = slicer.util.arrayFromVolume(volume)
-        # print(image.shape)
-        # imageMessage = pyigtl.ImageMessage(image, device_name="VisionProModule")
-        # self.client.send_message(imageMessage)
-        self.connector.RegisterOutgoingMRMLNode(volume)
-        self.connector.PushNode(volume)
-
-    def sendModel(self, model) -> None:
-        self.connector.RegisterOutgoingMRMLNode(model)
-        self.connector.PushNode(model)
-        self.sendModelDisplayProperties(model)
-        model.GetDisplayNode().AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
-
-    def sendModelDisplayProperties(self, model) -> None:
-        print("sending")
-        color = model.GetDisplayNode().GetColor()
-        self.sendString(model.GetName()+"---"+self.formatColor(color),"MODELCOLOR")
-        opacity = model.GetDisplayNode().GetOpacity()  if model.GetDisplayNode().GetVisibility() else 0
-        self.sendString(model.GetName()+"---"+str(opacity),"MODELVISIBILITY")
-
-    def formatColor(self, color):
-        return "#{:02X}{:02X}{:02X}".format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
-
-    def sendTransform(self, transform) -> None:
-        self.connector.RegisterOutgoingMRMLNode(transform)
-        self.connector.PushNode(transform)
-
-    def sendCursorPosition(self, position) -> None:
-        transform = slicer.vtkMRMLLinearTransformNode()
-        transform.SetName("CURSOR")
-        matrix = vtk.vtkMatrix4x4()
-        matrix.SetElement(0, 3, position[0])
-        matrix.SetElement(1, 3, position[1])
-        matrix.SetElement(2, 3, position[2])
-        transform.SetMatrixTransformToParent(matrix)
-        slicer.mrmlScene.AddNode(transform)
-        self.sendTransform(transform)
-        self.connector.UnregisterOutgoingMRMLNode(transform)
-        slicer.mrmlScene.RemoveNode(transform)
-    
-    def sendCameraTransform(self, matrix) -> None:
-        transform = slicer.vtkMRMLLinearTransformNode()
-        transform.SetName("CAMERA")
-        matrix = matrix
-        transform.SetMatrixTransformToParent(matrix)
-        slicer.mrmlScene.AddNode(transform)
-        self.sendTransform(transform)
-        self.connector.UnregisterOutgoingMRMLNode(transform)
-        slicer.mrmlScene.RemoveNode(transform)
-
-    def sendString(self, string: str, type: str) -> None:
-        # Create a message with 32 bit int image data
-        text = slicer.vtkMRMLTextNode()
-        text.SetName(type)
-        text.SetText(string)
-        slicer.mrmlScene.AddNode(text)
-        self.connector.RegisterOutgoingMRMLNode(text)
-        self.connector.PushNode(text)
-        self.connector.UnregisterOutgoingMRMLNode(text)
-        slicer.mrmlScene.RemoveNode(text)
-    
     def close(self) -> None:
-        if self.connector is not None:
-            self.connector.Stop()
-            slicer.mrmlScene.RemoveNode(self.connector)
-            self.connector = None
+        pass
