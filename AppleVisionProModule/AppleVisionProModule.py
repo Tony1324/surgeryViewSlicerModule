@@ -137,12 +137,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic = AppleVisionProModuleLogic()
 
 
-        
-        # Connections
-        # Example connections to scene events
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
-
+        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateVolumeSelector)
         #these text nodes get modified by messages from the vision pro
         self.axialText = slicer.vtkMRMLTextNode()
         self.axialText.SetName("AXIAL")
@@ -177,6 +172,9 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
         self.camera = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode")
         self.cameraObserver = self.camera.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
+
+        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
+        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
     def onCameraMoved(self, *_): 
         if self.connected and self.syncCameraToggle.isChecked():
