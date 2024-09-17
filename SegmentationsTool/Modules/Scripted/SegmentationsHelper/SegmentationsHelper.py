@@ -126,7 +126,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         visionProInterfaceLayout = qt.QVBoxLayout(self.visionProInterface)
         self.visionProInterface.hide()
 
-        visionProInterfaceLayout.addWidget(slicer.modules.applevisionpromodule.widgetRepresentation())
+        visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
+        visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
+        visionProInterfaceLayout.addWidget(visionProConnectionWidget)
 
         visionProInterfaceLayout.addStretch(1)
 
