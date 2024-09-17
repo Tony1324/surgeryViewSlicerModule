@@ -68,40 +68,114 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         layout = qt.QVBoxLayout(panelWidget)
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
+        
+        #VOLUME SELECTOR
 
         self.imageSelector = qt.QWidget()
         imageSelectorLayout = qt.QVBoxLayout(self.imageSelector)
+
         imageSelectText = qt.QLabel("Select an Image Volume:")
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
-
         imageSelectorLayout.addWidget(imageSelectText)
+
+        imageSelectorLayout.addStretch(1)
+
+        # invoke Add Data window
+        addDataButton = qt.QPushButton("Choose Volume From Files")
+        addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: blue")
+        addDataButton.clicked.connect(slicer.util.openAddDataDialog)
+        imageSelectorLayout.addWidget(addDataButton)
+
+        # Load Data from Server
+        loadDataButton = qt.QPushButton("Load Volume from Server")
+        loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: green")
+        # loadDataButton.clicked.connect(self.loadDataFromServer)
+        imageSelectorLayout.addWidget(loadDataButton)
+
+        imageSelectorLayout.addStretch(1)
+
+        nextButton = qt.QPushButton("Next")
+        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        nextButton.clicked.connect(self.showSegmentationEditor)
+        imageSelectorLayout.addWidget(nextButton)
+
         layout.addWidget(self.imageSelector)
+
+        #When volume is selected, automatically show segmentation editor
+        self.nodeAddedObserver = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
+
+        #SEGMENTATIONS
 
         self.segmentationEditor = qt.QWidget()
         segmentationEditorLayout = qt.QVBoxLayout(self.segmentationEditor)
         self.segmentationEditor.hide()
+
+        segmentationEditorLayout.addWidget(slicer.modules.segmenteditor.widgetRepresentation())
+
+        segmentationEditorLayout.addStretch(1)
+        # add next button
+        nextButton = qt.QPushButton("Connect to Apple Vision Pro")
+        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        nextButton.clicked.connect(self.showVisionProInterface)
+        segmentationEditorLayout.addWidget(nextButton)
+
         layout.addWidget(self.segmentationEditor)
         
 
         self.visionProInterface = qt.QWidget()
         visionProInterfaceLayout = qt.QVBoxLayout(self.visionProInterface)
-        visionProInterfaceLayout.addWidget(slicer.modules.applevisionpromodule.widgetRepresentation())
         self.visionProInterface.hide()
+
+        visionProInterfaceLayout.addWidget(slicer.modules.applevisionpromodule.widgetRepresentation())
+
+        visionProInterfaceLayout.addStretch(1)
+
+        backButton = qt.QPushButton("Back to Image Selector")
+        backButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        backButton.clicked.connect(self.showImageSelector)
+        visionProInterfaceLayout.addWidget(backButton)
+
         layout.addWidget(self.visionProInterface)
         
 
         # Create logic class instance
         self.logic = SegmentationsHelperLogic()
-        layout.addStretch(1)
+        # layout.addStretch(1)
 
         # Connections
         # Example connections to scene events
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+    
+    def showImageSelector(self):
+        self.imageSelector.show()
+        self.segmentationEditor.hide()
+        self.visionProInterface.hide()
+
+    def showSegmentationEditor(self):
+        self.imageSelector.hide()
+        self.segmentationEditor.show()
+        self.visionProInterface.hide()
+    
+    def showVisionProInterface(self):
+        self.imageSelector.hide()
+        self.segmentationEditor.hide()
+        self.visionProInterface.show()
+
+    def onNodeAdded(self, caller, event):
+        """Called when a node is added to the scene."""
+        node = caller.GetLastNode()
+        if isinstance(node, vtkMRMLScalarVolumeNode):
+            self.showSegmentationEditor()
+            #remove other volumes
+            for volume in slicer.util.getNodes('vtkMRMLScalarVolumeNode'):
+                if volume != node:
+                    slicer.mrmlScene.RemoveNode(volume)
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.logic.close()
+        slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
@@ -112,11 +186,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
-        self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
-        self.redSlice.RemoveObserver(self.redSliceObserver)
-        self.greenSlice.RemoveObserver(self.greenSliceObserver)
-        self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
-        self.camera.RemoveObserver(self.cameraObserver)
         slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def onSceneEndClose(self, caller, event) -> None:

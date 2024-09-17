@@ -64,16 +64,15 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
 
-        connectionContainer = qt.QWidget()
+        connectionContainer = qt.QGroupBox()
         connectionLayout = qt.QVBoxLayout(connectionContainer)
+
         #set background
-        connectionContainer.setStyleSheet("background-color: #d0d0d0")
         layout.addWidget(connectionContainer)
 
         # Status Message
         self.status_label = qt.QLabel("Status: Not Connected")
         connectionLayout.addWidget(self.status_label)
-
 
         # IP Address Input
         ip_address_label = qt.QLabel("IP Address:")
@@ -93,51 +92,49 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.connect_button.clicked.connect(self.onConnectButtonClicked)
         self.connect_button.setStyleSheet("background-color: green")
         connectionLayout.addWidget(self.connect_button)
-
+        
         self.dataContainer = qt.QWidget()
         dataLayout = qt.QVBoxLayout(self.dataContainer)
         layout.addWidget(self.dataContainer)
         self.dataContainer.setEnabled(False)
+        dataLayout.setContentsMargins(0,0,0,0)
 
-        # Volume
-        self.label = qt.QLabel("Select an image volume:")
-        dataLayout.addWidget(self.label)
-        self.volumeSelector = qt.QComboBox()
-        dataLayout.addWidget(self.volumeSelector)
-        self.updateVolumeSelector()
+        sendDataContainer = qt.QGroupBox()
+        sendDataLayout = qt.QVBoxLayout(sendDataContainer)
+        dataLayout.addWidget(sendDataContainer)
+        sendDataContainer.setTitle("Data")
 
-        self.sendVolumeButton = qt.QPushButton("Send Volume")
-        dataLayout.addWidget(self.sendVolumeButton)
-        self.sendVolumeButton.clicked.connect(self.onSendVolumeButtonClicked)
+        self.sendAllDataButton = qt.QPushButton("Send All Data")
+        self.sendAllDataButton.clicked.connect(self.onSendDataButtonClicked)
+        sendDataLayout.addWidget(self.sendAllDataButton)
 
-        #Models
-        self.sendModelsButton = qt.QPushButton("Send All Models")
-        self.sendModelsButton.clicked.connect(self.onSendModelsButtonClicked)
-        dataLayout.addWidget(self.sendModelsButton)
+        self.clearAllButton = qt.QPushButton("Clear All Data")
+        self.clearAllButton.clicked.connect(self.onClearAllButtonClicked)
+        sendDataLayout.addWidget(self.clearAllButton)
+
+        viewContainer = qt.QGroupBox()
+        viewLayout = qt.QVBoxLayout(viewContainer)
+        dataLayout.addWidget(viewContainer)
+        viewContainer.setTitle("View Options")
 
         self.showSlices = qt.QCheckBox("Show Volume Slices")
         self.showSlices.click()
-        dataLayout.addWidget(self.showSlices)
+        viewLayout.addWidget(self.showSlices)
         self.showSlices.clicked.connect(self.onShowVolumeClicked)
 
         self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
-        dataLayout.addWidget(self.sendPointerToggle)
+        viewLayout.addWidget(self.sendPointerToggle)
     
         self.syncCameraToggle = qt.QCheckBox("Sync Camera Orientation")
-        dataLayout.addWidget(self.syncCameraToggle)
+        viewLayout.addWidget(self.syncCameraToggle)
 
-        self.clearAllButton = qt.QPushButton("Clear All Data")
-        self.clearAllButton.setStyleSheet("background-color: red")
-        self.clearAllButton.clicked.connect(self.onClearAllButtonClicked)
-        dataLayout.addWidget(self.clearAllButton)
+
         # add vertical spacer
         layout.addStretch(1)
 
         # Create logic class instance
         self.logic = AppleVisionProModuleLogic()
 
-
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.updateVolumeSelector)
         #these text nodes get modified by messages from the vision pro
         self.axialText = slicer.vtkMRMLTextNode()
         self.axialText.SetName("AXIAL")
@@ -201,13 +198,9 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             crosshairNode.GetCursorPositionRAS(ras)
             self.logic.sendCursorPosition(ras)
 
-    def updateVolumeSelector(self, *_):
-        self.volumeSelector.clear()
-        volumes = slicer.mrmlScene.GetNodesByClass('vtkMRMLScalarVolumeNode')
-        volumes.UnRegister(None)
-        for i in range(volumes.GetNumberOfItems()):
-            volume = volumes.GetItemAsObject(i)
-            self.volumeSelector.addItem(volume.GetName(), volume)
+    def onSendDataButtonClicked(self):
+        self.onSendModelsButtonClicked()
+        self.onSendVolumeButtonClicked()
 
     def onSendModelsButtonClicked(self):
         models = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
@@ -240,7 +233,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
-        volume = self.volumeSelector.currentData
+        volume = slicer.mrmScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
         self.logic.sendImage(volume)
 
     def onShowVolumeClicked(self) -> None:
@@ -319,7 +312,6 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     def enter(self) -> None:
         """Called each time the user opens this module."""
         # Make sure parameter node exists and observed
-        self.updateVolumeSelector()
 
     def exit(self) -> None:
         """Called each time the user opens a different module."""
