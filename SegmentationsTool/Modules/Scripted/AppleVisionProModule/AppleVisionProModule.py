@@ -323,6 +323,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.greenSlice.RemoveObserver(self.greenSliceObserver)
         self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
         self.camera.RemoveObserver(self.cameraObserver)
+        self.onClearAllButtonClicked()
         slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def onSceneEndClose(self, caller, event) -> None:
