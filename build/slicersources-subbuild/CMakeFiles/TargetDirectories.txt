@@ -1,0 +1,3 @@
+/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/slicersources-populate.dir
+/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/edit_cache.dir
+/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/rebuild_cache.dir

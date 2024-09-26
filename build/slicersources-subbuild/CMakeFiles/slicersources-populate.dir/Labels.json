@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/slicersources-populate"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/slicersources-populate.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/CMakeFiles/slicersources-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-build.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-download.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-install.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-test.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicersources-subbuild/slicersources-populate-prefix/src/slicersources-populate-stamp/slicersources-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"slicersources-populate"
+		],
+		"name" : "slicersources-populate"
+	}
+}

@@ -233,7 +233,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
-        volume = slicer.mrmScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
+        volume = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
         self.logic.sendImage(volume)
 
     def onShowVolumeClicked(self) -> None:

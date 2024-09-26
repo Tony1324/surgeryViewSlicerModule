@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/CMakeFiles/slicercustomapputilities-populate"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/CMakeFiles/slicercustomapputilities-populate.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/CMakeFiles/slicercustomapputilities-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-build.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-download.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-install.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-test.rule"
+		},
+		{
+			"file" : "/Users/breastcad/Downloads/SegmentationsTool/build/slicercustomapputilities-subbuild/slicercustomapputilities-populate-prefix/src/slicercustomapputilities-populate-stamp/slicercustomapputilities-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"slicercustomapputilities-populate"
+		],
+		"name" : "slicercustomapputilities-populate"
+	}
+}
