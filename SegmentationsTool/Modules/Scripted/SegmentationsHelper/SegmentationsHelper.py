@@ -49,6 +49,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self._parameterNode = None
         self._parameterNodeGuiTag = None
         self.connected = False
+        self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -94,9 +95,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         imageSelectorLayout.addStretch(1)
 
-        nextButton = qt.QPushButton("Next")
+        nextButton = qt.QPushButton("Perform Segmentation")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        nextButton.clicked.connect(self.showSegmentationEditor)
+        nextButton.clicked.connect(self.onPerformSegmentation)
         imageSelectorLayout.addWidget(nextButton)
 
         layout.addWidget(self.imageSelector)
@@ -149,6 +150,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
     
+    def onPerformSegmentation(self):
+        # slicer.modules.monailabel.widgetRepresentation().self().logic
+        self.monailabel._volumeNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLScalarVolumeNode')
+        showSegmentationEditor()
+
     def showImageSelector(self):
         self.imageSelector.show()
         self.segmentationEditor.hide()
