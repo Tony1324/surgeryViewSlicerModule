@@ -94,7 +94,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         nextButton = qt.QPushButton("Next")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.showImageSelector)
-        imageSelectorLayout.addWidget(nextButton)
+        configurationScreenLayout.addWidget(nextButton)
 
         layout.addWidget(self.imageSelector)
 
