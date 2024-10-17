@@ -119,9 +119,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
         imageSelectorLayout.addWidget(imageSelectText)
 
-        optionsButton = qt.QPushButton("Set Options")
+        optionsButton = qt.QPushButton("Server Options")
         optionsButton.setStyleSheet("font-size: 15px")
-        optionsButton.setFixedWidth(100)
+        optionsButton.setFixedWidth(120)
         optionsButton.clicked.connect(self.showConfigurationScreen)
         imageSelectorLayout.addWidget(optionsButton)
 
@@ -201,7 +201,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     
     def onPerformSegmentation(self):
         # slicer.modules.monailabel.widgetRepresentation().self().logic
-        self.monailabel._volumeNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLScalarVolumeNode')
+        # self.monailabel._volumeNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLScalarVolumeNode')
+        self.setIPAddresses()
+        self.connectToImageSever()
+        self.monailabel.onUploadImage()
+        self.monailabel.onClickSegmentation()
         self.showSegmentationEditor()
 
     def showConfigurationScreen(self):
@@ -240,8 +244,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def setIPAddresses(self):
         openigt_address = self.openigt_address_input.text
         image_server_address = self.image_server_address_input.text
+        self.monailabel.logic.setServer(image_server_address)
+        self.monailabel.ui.serverComboBox.currentText = image_server_address
         self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
 
+
+    def connectToImageSever(self):
+        self.monailabel.onClickFetchInfo() #establish connection to the server
 
     def onNodeAdded(self, caller, event):
         """Called when a node is added to the scene."""
