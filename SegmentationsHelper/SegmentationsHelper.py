@@ -74,6 +74,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.configurationScreen = qt.QWidget()
         configurationScreenLayout = qt.QVBoxLayout(self.configurationScreen
                                                    )
+        
 
         configurationText = qt.QLabel("Initial Configuration:")
         configurationText.setStyleSheet("font-weight: bold; font-size: 20px")
@@ -83,11 +84,24 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
-        self.openigt_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px")
+        self.openigt_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
+        configurationScreenLayout.addWidget(self.openigt_address_input)
 
         self.image_server_address_input = qt.QLineEdit()
         self.image_server_address_input.setPlaceholderText("Imaging Server IP Address")
-        self.image_server_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px")
+        self.image_server_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
+        configurationScreenLayout.addWidget(self.image_server_address_input)
+
+        settings = qt.QSettings()
+        saved_openigt_address = settings.value("SegmentationsHelper/openigt_address", "")
+        saved_image_server_address = settings.value("SegmentationsHelper/image_server_address", "")
+
+        if saved_openigt_address and saved_image_server_address:
+            self.showImageSelector()
+
+        self.openigt_address_input.setText(saved_openigt_address)
+        self.image_server_address_input.setText(saved_image_server_address)
+
 
         configurationScreenLayout.addStretch(1)
 
@@ -96,21 +110,23 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         nextButton.clicked.connect(self.showImageSelector)
         configurationScreenLayout.addWidget(nextButton)
 
-        layout.addWidget(self.imageSelector)
+        layout.addWidget(self.configurationScreen)
 
         #VOLUME SELECTOR
 
         self.imageSelector = qt.QWidget()
         imageSelectorLayout = qt.QVBoxLayout(self.imageSelector)
+        self.imageSelector.hide()
 
         imageSelectText = qt.QLabel("Select an Image Volume:")
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
         imageSelectorLayout.addWidget(imageSelectText)
 
         optionsButton = qt.QPushButton("Set Options")
-        optionsButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        optionsButton.setStyleSheet("font-size: 15px")
+        optionsButton.setFixedWidth(100)
         optionsButton.clicked.connect(self.showConfigurationScreen)
-        imageSelectorLayout.addWidget(nextButton)
+        imageSelectorLayout.addWidget(optionsButton)
 
         imageSelectorLayout.addStretch(1)
 
@@ -160,9 +176,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         visionProInterfaceLayout = qt.QVBoxLayout(self.visionProInterface)
         self.visionProInterface.hide()
 
-        visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
-        visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
-        visionProInterfaceLayout.addWidget(visionProConnectionWidget)
+        self.visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
+        self.visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
+        visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
 
         visionProInterfaceLayout.addStretch(1)
 
@@ -186,7 +202,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onPerformSegmentation(self):
         # slicer.modules.monailabel.widgetRepresentation().self().logic
         self.monailabel._volumeNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLScalarVolumeNode')
-        showSegmentationEditor()
+        self.showSegmentationEditor()
 
     def showConfigurationScreen(self):
         self.configurationScreen.show()
@@ -199,7 +215,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
-
+        self.saveIPAddresses()
+    
     def showSegmentationEditor(self):
         self.imageSelector.hide()
         self.segmentationEditor.show()
@@ -211,6 +228,19 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.visionProInterface.show()
         self.configurationScreen.hide()
+        self.setIPAddresses()
+    
+    def saveIPAddresses(self):
+        """Save IP addresses to settings and move to the next screen."""
+        settings = qt.QSettings()
+        settings.setValue("SegmentationsHelper/openigt_address", self.openigt_address_input.text)
+        settings.setValue("SegmentationsHelper/image_server_address", self.image_server_address_input.text)
+
+    def setIPAddresses(self):
+        openigt_address = self.openigt_address_input.text
+        image_server_address = self.image_server_address_input.text
+        self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
+
 
     def onNodeAdded(self, caller, event):
         """Called when a node is added to the scene."""
