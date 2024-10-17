@@ -96,9 +96,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         saved_openigt_address = settings.value("SegmentationsHelper/openigt_address", "")
         saved_image_server_address = settings.value("SegmentationsHelper/image_server_address", "")
 
-        if saved_openigt_address and saved_image_server_address:
-            self.showImageSelector()
-
         self.openigt_address_input.setText(saved_openigt_address)
         self.image_server_address_input.setText(saved_image_server_address)
 
@@ -198,6 +195,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # Example connections to scene events
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+
+        if saved_openigt_address and saved_image_server_address:
+            self.showImageSelector()
     
     def onPerformSegmentation(self):
         # slicer.modules.monailabel.widgetRepresentation().self().logic
@@ -205,29 +205,30 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.showSegmentationEditor()
 
     def showConfigurationScreen(self):
-        self.configurationScreen.show()
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
+        self.configurationScreen.show()
         
     def showImageSelector(self):
-        self.imageSelector.show()
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
+        self.imageSelector.show()
         self.saveIPAddresses()
     
     def showSegmentationEditor(self):
         self.imageSelector.hide()
-        self.segmentationEditor.show()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
+        self.segmentationEditor.show()
     
     def showVisionProInterface(self):
         self.imageSelector.hide()
         self.segmentationEditor.hide()
-        self.visionProInterface.show()
         self.configurationScreen.hide()
+        
+        self.visionProInterface.show()
         self.setIPAddresses()
     
     def saveIPAddresses(self):
@@ -272,7 +273,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         """Called just after the scene is closed."""
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         # close client
-        self.logic.close()
+        # self.logic.close()
 #
 # AppleVisionProModuleLogic
 #
