@@ -72,9 +72,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         #CONFIGURATION SCREEN
         self.configurationScreen = qt.QWidget()
-        configurationScreenLayout = qt.QVBoxLayout(self.configurationScreen
-                                                   )
-        
+        configurationScreenLayout = qt.QVBoxLayout(self.configurationScreen)
 
         configurationText = qt.QLabel("Initial Configuration:")
         configurationText.setStyleSheet("font-weight: bold; font-size: 20px")
@@ -85,11 +83,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
         self.openigt_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
+        self.openigt_address_input.textChanged.connect(self.validateIPAddress)
         configurationScreenLayout.addWidget(self.openigt_address_input)
 
         self.image_server_address_input = qt.QLineEdit()
         self.image_server_address_input.setPlaceholderText("Imaging Server IP Address")
         self.image_server_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
+        self.image_server_address_input.textChanged.connect(self.validateIPAddress)
         configurationScreenLayout.addWidget(self.image_server_address_input)
 
         settings = qt.QSettings()
@@ -98,16 +98,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.openigt_address_input.setText(saved_openigt_address)
         self.image_server_address_input.setText(saved_image_server_address)
-
-
+        
         configurationScreenLayout.addStretch(1)
 
-        nextButton = qt.QPushButton("Next")
-        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        nextButton.clicked.connect(self.showImageSelector)
-        configurationScreenLayout.addWidget(nextButton)
+        self.toImageSelectorButton = qt.QPushButton("Next")
+        self.toImageSelectorButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.toImageSelectorButton.clicked.connect(self.showImageSelector)
+        configurationScreenLayout.addWidget(self.toImageSelectorButton)
 
         layout.addWidget(self.configurationScreen)
+
+        self.validateIPAddress()
 
         #VOLUME SELECTOR
 
@@ -127,6 +128,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         imageSelectorLayout.addStretch(1)
 
+        self.volumeIsOnServer = False
+
         # invoke Add Data window
         addDataButton = qt.QPushButton("Choose Volume From Files")
         addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: blue")
@@ -136,7 +139,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # Load Data from Server
         loadDataButton = qt.QPushButton("Load Volume from Server")
         loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: green")
-        # loadDataButton.clicked.connect(self.loadDataFromServer)
+        loadDataButton.clicked.connect(self.loadDataFromServer)
         imageSelectorLayout.addWidget(loadDataButton)
 
         imageSelectorLayout.addStretch(1)
@@ -148,7 +151,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         layout.addWidget(self.imageSelector)
 
-        self.nodeAddedObserver = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
+        # self.nodeAddedObserver = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
 
         #SEGMENTATIONS
 
@@ -199,14 +202,29 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if saved_openigt_address and saved_image_server_address:
             self.showImageSelector()
     
-    def onPerformSegmentation(self):
-        # slicer.modules.monailabel.widgetRepresentation().self().logic
-        # self.monailabel._volumeNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLScalarVolumeNode')
+    def loadDataFromServer(self, *_):
         self.setIPAddresses()
         self.connectToImageSever()
-        self.monailabel.onUploadImage()
+        self.monailabel.ui.strategyBox.currentText = "first"
+        self.monailabel.onNextSampleButton()
+        self.volumeIsOnServer = True
+
+    def onPerformSegmentation(self):
+        self.setIPAddresses()
+        self.connectToImageSever()
+        if not self.volumeIsOnServer:
+            self.monailabel.onUploadImage()
         self.monailabel.onClickSegmentation()
+        self.volumeIsOnServer = False
         self.showSegmentationEditor()
+        self.exportSegmentationsToModels()
+
+    def validateIPAddress(self, *_):
+        if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
+            self.toImageSelectorButton.setEnabled(False)
+        else:
+            self.toImageSelectorButton.setEnabled(True)
+
 
     def showConfigurationScreen(self):
         self.imageSelector.hide()
@@ -244,10 +262,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def setIPAddresses(self):
         openigt_address = self.openigt_address_input.text
         image_server_address = self.image_server_address_input.text
-        self.monailabel.logic.setServer(image_server_address)
-        self.monailabel.ui.serverComboBox.currentText = image_server_address
+        self.monailabel.logic.setServer("http://"+str(image_server_address)+":8000")
+        self.monailabel.ui.serverComboBox.currentText = "http://"+str(image_server_address)+":8000"
         self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
-
 
     def connectToImageSever(self):
         self.monailabel.onClickFetchInfo() #establish connection to the server
@@ -261,6 +278,15 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             for volume in slicer.util.getNodes('vtkMRMLScalarVolumeNode'):
                 if volume != node:
                     slicer.mrmlScene.RemoveNode(volume)
+
+    def exportSegmentationsToModels(self):
+        segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    
+        for segmentation_node in segmentation_nodes:
+            segmentation_name = segmentation_node.GetName()
+            model_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", segmentation_name + "_Model")
+
+            model_node.GetDisplayNode().SetVisibility3DFill(True)
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
