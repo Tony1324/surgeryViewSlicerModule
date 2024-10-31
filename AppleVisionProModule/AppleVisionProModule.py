@@ -64,7 +64,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
 
-        connectionContainer = qt.QGroupBox()
+        connectionContainer = qt.QWidget()
         connectionLayout = qt.QVBoxLayout(connectionContainer)
 
         #set background
@@ -72,17 +72,17 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
         # Status Message
         self.status_label = qt.QLabel("Status: Not Connected")
+        self.status_label.setStyleSheet("font-weight:bold; font-size: 20px")
         connectionLayout.addWidget(self.status_label)
 
         # IP Address Input
-        ip_address_label = qt.QLabel("IP Address:")
         self.ip_address_input = qt.QLineEdit()
         self.ip_address_input.textChanged.connect(self.validateIPAddress)
         self.ip_address_input.setPlaceholderText("Enter IP Address")
         self.ip_address_input.setStyleSheet("background-color: white")
+        self.ip_address_input.setStyleSheet("font-weight: bold; font-size: 20px")
         ip_container = qt.QWidget()
         ip_container_layout = qt.QHBoxLayout(ip_container)
-        ip_container_layout.addWidget(ip_address_label)
         ip_container_layout.addWidget(self.ip_address_input)
         ip_container_layout.setContentsMargins(0,0,0,0)
         connectionLayout.addWidget(ip_container)
@@ -90,7 +90,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Connect Button
         self.connect_button = qt.QPushButton("Connect")
         self.connect_button.clicked.connect(self.onConnectButtonClicked)
-        self.connect_button.setStyleSheet("background-color: green")
+        self.connect_button.setStyleSheet("background-color: green; font-weight:bold; font-size: 20px")
         connectionLayout.addWidget(self.connect_button)
         
         self.dataContainer = qt.QWidget()
@@ -99,33 +99,37 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.dataContainer.setEnabled(False)
         dataLayout.setContentsMargins(0,0,0,0)
 
-        sendDataContainer = qt.QGroupBox()
+        sendDataContainer = qt.QWidget()
         sendDataLayout = qt.QVBoxLayout(sendDataContainer)
         dataLayout.addWidget(sendDataContainer)
-        sendDataContainer.setTitle("Data")
+        # sendDataContainer.setTitle("Data")
 
         self.sendAllDataButton = qt.QPushButton("Send All Data")
         self.sendAllDataButton.clicked.connect(self.onSendDataButtonClicked)
+        self.sendAllDataButton.setStyleSheet("font-weight: bold; font-size: 20px")
         sendDataLayout.addWidget(self.sendAllDataButton)
 
         self.clearAllButton = qt.QPushButton("Clear All Data")
         self.clearAllButton.clicked.connect(self.onClearAllButtonClicked)
+        self.clearAllButton.setStyleSheet("font-weight: bold; font-size: 20px")
         sendDataLayout.addWidget(self.clearAllButton)
 
-        viewContainer = qt.QGroupBox()
+        viewContainer = qt.QWidget()
         viewLayout = qt.QVBoxLayout(viewContainer)
         dataLayout.addWidget(viewContainer)
-        viewContainer.setTitle("View Options")
 
         self.showSlices = qt.QCheckBox("Show Volume Slices")
+        self.showSlices.setStyleSheet("font-size: 20px")
         self.showSlices.click()
         viewLayout.addWidget(self.showSlices)
         self.showSlices.clicked.connect(self.onShowVolumeClicked)
 
         self.sendPointerToggle = qt.QCheckBox("Send Cursor Data")
+        self.sendPointerToggle.setStyleSheet("font-size: 20px")
         viewLayout.addWidget(self.sendPointerToggle)
     
         self.syncCameraToggle = qt.QCheckBox("Sync Camera Orientation")
+        self.syncCameraToggle.setStyleSheet("font-size: 20px")
         viewLayout.addWidget(self.syncCameraToggle)
 
 

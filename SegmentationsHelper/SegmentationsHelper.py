@@ -80,6 +80,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         configurationScreenLayout.addStretch(1)
 
+        self.toImageSelectorButton = qt.QPushButton("Next")
+        self.toImageSelectorButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.toImageSelectorButton.clicked.connect(self.showImageSelector)
+
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
         self.openigt_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
@@ -101,9 +105,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         
         configurationScreenLayout.addStretch(1)
 
-        self.toImageSelectorButton = qt.QPushButton("Next")
-        self.toImageSelectorButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        self.toImageSelectorButton.clicked.connect(self.showImageSelector)
         configurationScreenLayout.addWidget(self.toImageSelectorButton)
 
         layout.addWidget(self.configurationScreen)
@@ -163,7 +164,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         segmentationEditorLayout.addStretch(1)
         # add next button
-        nextButton = qt.QPushButton("Connect to Apple Vision Pro")
+        nextButton = qt.QPushButton("Finish and Send to Apple Vision Pro")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.showVisionProInterface)
         segmentationEditorLayout.addWidget(nextButton)
@@ -182,9 +183,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         visionProInterfaceLayout.addStretch(1)
 
-        backButton = qt.QPushButton("Back to Image Selector")
+        backButton = qt.QPushButton("Reset and Go Back to Image Selector")
         backButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        backButton.clicked.connect(self.showImageSelector)
+        backButton.clicked.connect(self.resetToImageSelector)
         visionProInterfaceLayout.addWidget(backButton)
 
         layout.addWidget(self.visionProInterface)
@@ -217,7 +218,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.monailabel.onClickSegmentation()
         self.volumeIsOnServer = False
         self.showSegmentationEditor()
-        self.exportSegmentationsToModels()
 
     def validateIPAddress(self, *_):
         if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
@@ -249,10 +249,23 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
-        
         self.visionProInterface.show()
+        self.monailabel.onSaveLabel()
+        self.exportSegmentationsToModels()
         self.setIPAddresses()
     
+    def resetToImageSelector(self):
+        if not slicer.util.confirmOkCancelDisplay(
+                _(
+                    "This will close current scene.  Please make sure you have saved your current work.\n"
+                    "Are you sure to continue?"
+                )
+            ):
+                return
+        self.monailabel.onResetScribbles()
+        slicer.mrmlScene.Clear(0)
+        self.showImageSelector()
+
     def saveIPAddresses(self):
         """Save IP addresses to settings and move to the next screen."""
         settings = qt.QSettings()
@@ -281,17 +294,14 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def exportSegmentationsToModels(self):
         segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-    
+        shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+        exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
         for segmentation_node in segmentation_nodes:
-            segmentation_name = segmentation_node.GetName()
-            model_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", segmentation_name + "_Model")
-
-            model_node.GetDisplayNode().SetVisibility3DFill(True)
+            slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.logic.close()
-        slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
@@ -302,7 +312,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
-        slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
