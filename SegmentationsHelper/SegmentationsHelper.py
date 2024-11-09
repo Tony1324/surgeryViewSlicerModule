@@ -82,7 +82,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.toImageSelectorButton = qt.QPushButton("Next")
         self.toImageSelectorButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        self.toImageSelectorButton.clicked.connect(self.showImageSelector)
+        self.toImageSelectorButton.clicked.connect(self.onFinishConfiguration)
 
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
@@ -166,7 +166,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # add next button
         nextButton = qt.QPushButton("Finish and Send to Apple Vision Pro")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        nextButton.clicked.connect(self.showVisionProInterface)
+        nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
 
         layout.addWidget(self.segmentationEditor)
@@ -203,12 +203,19 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if saved_openigt_address and saved_image_server_address:
             self.showImageSelector()
     
+    def startTraining(self, *_):
+        slicer.modules.monailabel.widgetRepresentation().self().onTraining()
+
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
         self.connectToImageSever()
         self.monailabel.ui.strategyBox.currentText = "first"
         self.monailabel.onNextSampleButton()
         self.volumeIsOnServer = True
+
+    def onFinishConfiguration(self):
+        self.showImageSelector()
+        self.saveIPAddresses()
 
     def onPerformSegmentation(self):
         self.setIPAddresses()
@@ -219,13 +226,26 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.volumeIsOnServer = False
         self.showSegmentationEditor()
 
-    def validateIPAddress(self, *_):
-        if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
-            self.toImageSelectorButton.setEnabled(False)
-        else:
-            self.toImageSelectorButton.setEnabled(True)
+    def onFinishSegmentation(self):
+        self.showVisionProInterface()
+        self.monailabel.onSaveLabel()
+        self.exportSegmentationsToModels()
+        self.setIPAddresses()
+   
+    def resetToImageSelector(self):
+        if not slicer.util.confirmOkCancelDisplay(
+                _(
+                    "This will close current scene.  Please make sure you have saved your current work.\n"
+                    "Are you sure to continue?"
+                )
+            ):
+                return
+        self.monailabel.onResetScribbles()
+        slicer.mrmlScene.Clear(0)
+        self.showImageSelector()
 
 
+    #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
         self.imageSelector.hide()
         self.segmentationEditor.hide()
@@ -237,7 +257,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProInterface.hide()
         self.configurationScreen.hide()
         self.imageSelector.show()
-        self.saveIPAddresses()
     
     def showSegmentationEditor(self):
         self.imageSelector.hide()
@@ -250,21 +269,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
         self.visionProInterface.show()
-        self.monailabel.onSaveLabel()
-        self.exportSegmentationsToModels()
-        self.setIPAddresses()
-    
-    def resetToImageSelector(self):
-        if not slicer.util.confirmOkCancelDisplay(
-                _(
-                    "This will close current scene.  Please make sure you have saved your current work.\n"
-                    "Are you sure to continue?"
-                )
-            ):
-                return
-        self.monailabel.onResetScribbles()
-        slicer.mrmlScene.Clear(0)
-        self.showImageSelector()
+
+    def validateIPAddress(self, *_):
+        if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
+            self.toImageSelectorButton.setEnabled(False)
+        else:
+            self.toImageSelectorButton.setEnabled(True)
 
     def saveIPAddresses(self):
         """Save IP addresses to settings and move to the next screen."""
