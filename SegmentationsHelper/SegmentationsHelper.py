@@ -69,6 +69,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         layout = qt.QVBoxLayout(panelWidget)
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
+        panelWidget.setStyleSheet("""
+            QPushButton, QLineEdit { border-radius: 5px;  background-color: white; padding: 8px; opacity: 1} 
+            QPushButton:hover { border: 2px solid black } 
+            QLineEdit { border: 1px solid rgb(180,180,180)}
+        """)
 
         #CONFIGURATION SCREEN
         self.configurationScreen = qt.QWidget()
@@ -133,13 +138,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         # invoke Add Data window
         addDataButton = qt.QPushButton("Choose Volume From Files")
-        addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: blue")
+        addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,135,255)")
         addDataButton.clicked.connect(slicer.util.openAddDataDialog)
         imageSelectorLayout.addWidget(addDataButton)
 
         # Load Data from Server
         loadDataButton = qt.QPushButton("Load Volume from Server")
-        loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: green")
+        loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,200,100)")
         loadDataButton.clicked.connect(self.loadDataFromServer)
         imageSelectorLayout.addWidget(loadDataButton)
 

@@ -60,6 +60,13 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
         # Create main widget and layout
         panelWidget = qt.QWidget()
+        panelWidget.setStyleSheet("""
+            QPushButton, QLineEdit { border-radius: 5px;  background-color: white; padding: 8px; opacity: 1} 
+            QPushButton:hover { border: 2px solid black } 
+            QLineEdit { border: 1px solid rgb(180,180,180)}
+            QCheckBox::indicator {width: 20px; height: 20px; border: 1px solid gray; border-radius: 5px}
+        """)
+
         layout = qt.QVBoxLayout(panelWidget)
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
@@ -90,7 +97,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Connect Button
         self.connect_button = qt.QPushButton("Connect")
         self.connect_button.clicked.connect(self.onConnectButtonClicked)
-        self.connect_button.setStyleSheet("background-color: green; font-weight:bold; font-size: 20px")
+        self.connect_button.setStyleSheet("background-color: rgb(50,200,100); font-weight:bold; font-size: 20px")
         connectionLayout.addWidget(self.connect_button)
         
         self.dataContainer = qt.QWidget()
