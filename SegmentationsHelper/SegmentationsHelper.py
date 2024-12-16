@@ -234,6 +234,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onFinishSegmentation(self):
         self.showVisionProInterface()
         self.monailabel.onSaveLabel()
+        self.monailabel.onTraining()
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
