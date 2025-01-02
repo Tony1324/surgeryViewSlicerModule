@@ -207,9 +207,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         if saved_openigt_address and saved_image_server_address:
             self.showImageSelector()
-    
-    def startTraining(self, *_):
-        self.monailabel.onTraining()
 
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
@@ -237,7 +234,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onFinishSegmentation(self):
         self.showVisionProInterface()
         self.monailabel.onSaveLabel()
-        self.startTraining()
+        self.monailabel.onTraining()
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
