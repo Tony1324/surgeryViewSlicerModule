@@ -209,7 +209,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.showImageSelector()
     
     def startTraining(self, *_):
-        slicer.modules.monailabel.widgetRepresentation().self().onTraining()
+        self.monailabel.onTraining()
 
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
@@ -223,6 +223,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.saveIPAddresses()
 
     def onPerformSegmentation(self):
+        if slicer.mrmlScene.GetNodesByClass("vtkMRMLVolumeNode").GetNumberOfItems() == 0: 
+            return
+
         self.setIPAddresses()
         self.connectToImageSever()
         if not self.volumeIsOnServer:
@@ -234,6 +237,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onFinishSegmentation(self):
         self.showVisionProInterface()
         self.monailabel.onSaveLabel()
+        self.startTraining()
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
@@ -245,6 +249,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 )
             ):
                 return
+        self.volumeIsOnServer = False
         self.monailabel.onResetScribbles()
         slicer.mrmlScene.Clear(0)
         self.showImageSelector()

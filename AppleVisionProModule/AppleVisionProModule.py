@@ -65,6 +65,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             QPushButton:hover { border: 2px solid black } 
             QLineEdit { border: 1px solid rgb(180,180,180)}
             QCheckBox::indicator {width: 20px; height: 20px; border: 1px solid gray; border-radius: 5px}
+            QCheckBox::indicator:checked {background-color: rgb(50,200,100); width: 20px; height: 20px; border: 1px solid gray; border-radius: 5px}
         """)
 
         layout = qt.QVBoxLayout(panelWidget)
