@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 import vtk
 
 import slicer
+from slicer.parameterNodeWrapper import *
 from slicer.i18n import tr as _
 from slicer.i18n import translate
 from slicer.ScriptedLoadableModule import *
@@ -14,6 +15,9 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
 
+@parameterNodeWrapper
+class SegmentationSession:
+    name: str
 
 class SegmentationsHelper(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
@@ -89,11 +93,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.toImageSelectorButton.setStyleSheet("font-weight: bold; font-size: 20px")
         self.toImageSelectorButton.clicked.connect(self.onFinishConfiguration)
 
+        openigt_address_label = qt.QLabel("Vision Pro IP Address")
+        configurationScreenLayout.addWidget(openigt_address_label)
+
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
         self.openigt_address_input.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
         self.openigt_address_input.textChanged.connect(self.validateIPAddress)
         configurationScreenLayout.addWidget(self.openigt_address_input)
+
+        image_server_address_label = qt.QLabel("Imaging Server IP Address")
+        configurationScreenLayout.addWidget(image_server_address_label)
 
         self.image_server_address_input = qt.QLineEdit()
         self.image_server_address_input.setPlaceholderText("Imaging Server IP Address")
@@ -116,6 +126,29 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.validateIPAddress()
 
+        #SESSIONS LIST
+        self.sessionsList = qt.QWidget()
+        sessionsListLayout = qt.QVBoxLayout(self.sessionsList)
+        self.sessionsList.hide()
+
+        optionsButton = qt.QPushButton("Server Options")
+        optionsButton.setStyleSheet("font-size: 15px")
+        optionsButton.setFixedWidth(120)
+        optionsButton.clicked.connect(self.showConfigurationScreen)
+        sessionsListLayout.addWidget(optionsButton)
+
+        sessionsListTitle = qt.QLabel("All Sessions")
+        sessionsListTitle.setStyleSheet("font-weight: bold; font-size: 20px")
+        sessionsListLayout.addWidget(sessionsListTitle)
+
+        self.sessionListSelector = qt.QListWidget()
+        self.refreshSessionListSelector()
+        sessionsListLayout.addWidget(self.sessionListSelector)
+
+        sessionsListLayout.addStretch(1)
+        layout.addWidget(self.sessionsList)
+        
+
         #VOLUME SELECTOR
 
         self.imageSelector = qt.QWidget()
@@ -125,12 +158,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imageSelectText = qt.QLabel("Select an Image Volume:")
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
         imageSelectorLayout.addWidget(imageSelectText)
-
-        optionsButton = qt.QPushButton("Server Options")
-        optionsButton.setStyleSheet("font-size: 15px")
-        optionsButton.setFixedWidth(120)
-        optionsButton.clicked.connect(self.showConfigurationScreen)
-        imageSelectorLayout.addWidget(optionsButton)
 
         imageSelectorLayout.addStretch(1)
 
@@ -190,7 +217,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         backButton = qt.QPushButton("Reset and Go Back to Image Selector")
         backButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        backButton.clicked.connect(self.resetToImageSelector)
+        backButton.clicked.connect(self.resetToSessionsList)
         visionProInterfaceLayout.addWidget(backButton)
 
         layout.addWidget(self.visionProInterface)
@@ -206,7 +233,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
         if saved_openigt_address and saved_image_server_address:
-            self.showImageSelector()
+            self.showSessionsList()
+
+    def refreshSessionListSelector(self):
+        self.sessionListSelector.addItem("Hello")
 
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
@@ -216,7 +246,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.volumeIsOnServer = True
 
     def onFinishConfiguration(self):
-        self.showImageSelector()
+        self.showSessionsList()
         self.saveIPAddresses()
 
     def onPerformSegmentation(self):
@@ -238,7 +268,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
-    def resetToImageSelector(self):
+    def resetToSessionsList(self):
         if not slicer.util.confirmOkCancelDisplay(
                 _(
                     "This will close current scene.  Please make sure you have saved your current work.\n"
@@ -249,7 +279,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.volumeIsOnServer = False
         self.monailabel.onResetScribbles()
         slicer.mrmlScene.Clear(0)
-        self.showImageSelector()
+        self.showSessionsList()
 
 
     #HANDLE LAYOUT "TABS"
@@ -257,21 +287,32 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
+        self.sessionsList.hide()
         self.configurationScreen.show()
-        
+    
+    def showSessionsList(self):
+        self.imageSelector.hide()
+        self.segmentationEditor.hide()
+        self.visionProInterface.hide()
+        self.configurationScreen.hide()
+        self.sessionsList.show()
+
     def showImageSelector(self):
+        self.sessionsList.hide()
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
         self.imageSelector.show()
     
     def showSegmentationEditor(self):
+        self.sessionsList.hide()
         self.imageSelector.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
         self.segmentationEditor.show()
     
     def showVisionProInterface(self):
+        self.sessionsList.hide()
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
