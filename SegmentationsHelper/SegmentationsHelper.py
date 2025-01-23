@@ -77,6 +77,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             QPushButton, QLineEdit { border-radius: 5px;  background-color: white; padding: 8px; opacity: 1} 
             QPushButton:hover { border: 2px solid black } 
             QLineEdit { border: 1px solid rgb(180,180,180)}
+            QListWidget { font-size: 20px; border: 1px solid rgb(180,180,180); overflow: none; background-color: white; border-radius: 5px; height: 1000px }
+            QListWidget::item { padding: 5px }
         """)
 
         #CONFIGURATION SCREEN
@@ -131,21 +133,45 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         sessionsListLayout = qt.QVBoxLayout(self.sessionsList)
         self.sessionsList.hide()
 
+        sessionsListTitle = qt.QLabel("All Sessions")
+        sessionsListTitle.setStyleSheet("font-weight: bold; font-size: 20px")
+        sessionsListLayout.addWidget(sessionsListTitle)
+
         optionsButton = qt.QPushButton("Server Options")
         optionsButton.setStyleSheet("font-size: 15px")
         optionsButton.setFixedWidth(120)
         optionsButton.clicked.connect(self.showConfigurationScreen)
         sessionsListLayout.addWidget(optionsButton)
+        sessionsListLayout.addStretch(1)
 
-        sessionsListTitle = qt.QLabel("All Sessions")
-        sessionsListTitle.setStyleSheet("font-weight: bold; font-size: 20px")
-        sessionsListLayout.addWidget(sessionsListTitle)
+        #add and remove buttons
+        sessionListButtonContainer = qt.QWidget()
+        sessionListButtonContainerLayout = qt.QHBoxLayout(sessionListButtonContainer)
+        # remove margin to the sides of the buttons
+        sessionListButtonContainerLayout.setContentsMargins(0, 0, 0, 0)
+
+        addSessionButton = qt.QPushButton("Add Session")
+        addSessionButton.setStyleSheet("font-weight: bold; font-size: 12px")
+
+        removeSessionButton = qt.QPushButton("Remove Session")
+        removeSessionButton.setStyleSheet("font-weight: bold; font-size: 12px; background-color: rgb(255,200,200)")
+        
+        sessionListButtonContainerLayout.addWidget(addSessionButton)
+        sessionListButtonContainerLayout.addWidget(removeSessionButton)
+        sessionsListLayout.addWidget(sessionListButtonContainer)
 
         self.sessionListSelector = qt.QListWidget()
+        self.sessionListSelector.setFixedHeight(300)
         self.refreshSessionListSelector()
         sessionsListLayout.addWidget(self.sessionListSelector)
 
         sessionsListLayout.addStretch(1)
+
+        nextButton = qt.QPushButton("Next")
+        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        nextButton.clicked.connect(self.showImageSelector)
+        sessionsListLayout.addWidget(nextButton)
+
         layout.addWidget(self.sessionsList)
         
 
@@ -158,6 +184,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imageSelectText = qt.QLabel("Select an Image Volume:")
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
         imageSelectorLayout.addWidget(imageSelectText)
+
+        returnButton = qt.QPushButton("Back to Sessions List")
+        returnButton.setStyleSheet("font-size: 15px")
+        returnButton.setFixedWidth(200)
+        returnButton.clicked.connect(self.showSessionsList)
+        imageSelectorLayout.addWidget(returnButton)
 
         imageSelectorLayout.addStretch(1)
 
@@ -236,7 +268,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.showSessionsList()
 
     def refreshSessionListSelector(self):
-        self.sessionListSelector.addItem("Hello")
+        for i in range(10):
+            self.sessionListSelector.addItem("Hello")
 
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
