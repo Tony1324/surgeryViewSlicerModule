@@ -16,7 +16,7 @@ from time import sleep
 import threading
 
 @parameterNodeWrapper
-class SegmentationSession:
+class SegmentationsHelperParameterNode:
     name: str
 
 class SegmentationsHelper(ScriptedLoadableModule):
@@ -51,7 +51,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
         self._parameterNode = None
-        self._parameterNodeGuiTag = None
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
 
@@ -261,11 +260,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         # Connections
         # Example connections to scene events
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+        self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
+        self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
         if saved_openigt_address and saved_image_server_address:
             self.showSessionsList()
+        
 
     def refreshSessionListSelector(self):
         for i in range(10):
@@ -389,26 +389,52 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
         for segmentation_node in segmentation_nodes:
             slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
+    
+    def initializeParameterNode(self) -> None:
+        """Ensure parameter node exists and observed."""
+        # Parameter node stores all user choices in parameter values, node selections, etc.
+        # so that when the scene is saved and reloaded, these settings are restored.
+
+        self.setParameterNode(self.logic.getParameterNode())
+
+    def setParameterNode(self, parameterNode: SegmentationsHelperParameterNode) -> None:
+        if self._parameterNode:
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
+        self._parameterNode = parameterNode
+        if self._parameterNode:
+            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
+
+    def onParameterNodeModified(self, caller, event):
+        #TODO: update gui based on parameter node
+        pass
+        
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
+        self.removeObservers()
         self.logic.close()
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
         # Make sure parameter node exists and observed
+        self.initializeParameterNode()
 
     def exit(self) -> None:
         """Called each time the user opens a different module."""
+        self._parameterNode.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
+        self._parameterNode = None
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
+        self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
         # If this module is shown while the scene is closed then recreate a new parameter node immediately
         # close client
-        # self.logic.close()
+        self.logic.close()
+        if self.parent.isEntered:
+            self.initializeParameterNode()
 #
 # AppleVisionProModuleLogic
 #
@@ -423,6 +449,9 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     Uses ScriptedLoadableModuleLogic base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
+
+    def getParameterNode(self):
+        return SegmentationsHelperParameterNode(super().getParameterNode())
 
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
