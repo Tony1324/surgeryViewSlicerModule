@@ -17,7 +17,9 @@ import threading
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
-    name: str
+    sessions: list[slicer.vtkMRMLSubjectHierarchyNode] = []
+
+
 
 class SegmentationsHelper(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
@@ -49,7 +51,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         """Called when the user opens the module the first time and the widget is initialized."""
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
-        self.logic = None
+        self.logic = SegmentationsHelperLogic()
         self._parameterNode = None
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
@@ -149,19 +151,20 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # remove margin to the sides of the buttons
         sessionListButtonContainerLayout.setContentsMargins(0, 0, 0, 0)
 
-        addSessionButton = qt.QPushButton("Add Session")
-        addSessionButton.setStyleSheet("font-weight: bold; font-size: 12px")
+        self.addSessionButton = qt.QPushButton("Add Session")
+        self.addSessionButton.setStyleSheet("font-weight: bold; font-size: 12px")
+        self.addSessionButton.clicked.connect(self.addSession)
 
-        removeSessionButton = qt.QPushButton("Remove Session")
-        removeSessionButton.setStyleSheet("font-weight: bold; font-size: 12px; background-color: rgb(255,200,200)")
+        self.removeSessionButton = qt.QPushButton("Remove Session")
+        self.removeSessionButton.setStyleSheet("font-weight: bold; font-size: 12px; background-color: rgb(255,200,200)")
+        self.removeSessionButton.clicked.connect(self.removeSession)
         
-        sessionListButtonContainerLayout.addWidget(addSessionButton)
-        sessionListButtonContainerLayout.addWidget(removeSessionButton)
+        sessionListButtonContainerLayout.addWidget(self.addSessionButton)
+        sessionListButtonContainerLayout.addWidget(self.removeSessionButton)
         sessionsListLayout.addWidget(sessionListButtonContainer)
 
         self.sessionListSelector = qt.QListWidget()
         self.sessionListSelector.setFixedHeight(300)
-        self.refreshSessionListSelector()
         sessionsListLayout.addWidget(self.sessionListSelector)
 
         sessionsListLayout.addStretch(1)
@@ -252,28 +255,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         visionProInterfaceLayout.addWidget(backButton)
 
         layout.addWidget(self.visionProInterface)
-        
-
-        # Create logic class instance
-        self.logic = SegmentationsHelperLogic()
-        # layout.addStretch(1)
 
         # Connections
-        # Example connections to scene events
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
         if saved_openigt_address and saved_image_server_address:
             self.showSessionsList()
-        
-
-    def refreshSessionListSelector(self):
-        for i in range(10):
-            self.sessionListSelector.addItem("Hello")
 
     def loadDataFromServer(self, *_):
         self.setIPAddresses()
-        self.connectToImageSever()
+        self.connectToImageServer()
         self.monailabel.ui.strategyBox.currentText = "first"
         self.monailabel.onNextSampleButton()
         self.volumeIsOnServer = True
@@ -389,13 +381,35 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
         for segmentation_node in segmentation_nodes:
             slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
+
+    def addSession(self):
+        if not self._parameterNode:
+            self.initializeParameterNode()
+
+        session = slicer.vtkMRMLSubjectHierarchyNode()
+        session.SetName(str("New Session"))
+        slicer.mrmlScene.AddNode(session)
+        self._parameterNode.sessions.append(session)
+
+    def removeSession(self):
+        if not self._parameterNode:
+            self.initializeParameterNode()
+        pass
+
+    def refreshSessionListSelector(self):
+        self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
+        self.sessionListSelector.clear()
+        print(self._parameterNode.sessions)
+        for session in self._parameterNode.sessions:
+            if session:
+                self.sessionListSelector.addItem(session.GetName())
     
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
-
         self.setParameterNode(self.logic.getParameterNode())
+        self.refreshSessionListSelector()
 
     def setParameterNode(self, parameterNode: SegmentationsHelperParameterNode) -> None:
         if self._parameterNode:
@@ -406,7 +420,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def onParameterNodeModified(self, caller, event):
         #TODO: update gui based on parameter node
-        pass
+        self.refreshSessionListSelector()
         
 
     def cleanup(self) -> None:
