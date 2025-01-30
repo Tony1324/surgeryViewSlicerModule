@@ -151,39 +151,38 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.axialText = slicer.vtkMRMLTextNode()
         self.axialText.SetName("AXIAL")
         slicer.mrmlScene.AddNode(self.axialText)
-        self.axialTextObserver = self.axialText.AddObserver(self.axialText.TextModifiedEvent, self.setAxialPosition)
+        self.addObserver(self.axialText, self.axialText.TextModifiedEvent, self.setAxialPosition)
 
         self.coronalText = slicer.vtkMRMLTextNode()
         self.coronalText.SetName("CORONAL")
         slicer.mrmlScene.AddNode(self.coronalText)
-        self.coronalTextObserver = self.coronalText.AddObserver(self.coronalText.TextModifiedEvent, self.setCoronalPosition)
+        self.addObserver(self.coronalText, self.coronalText.TextModifiedEvent, self.setCoronalPosition)
 
         self.sagittalText = slicer.vtkMRMLTextNode()
         self.sagittalText.SetName("SAGITTAL")
         slicer.mrmlScene.AddNode(self.sagittalText)
-        self.sagittalTextObserver = self.sagittalText.AddObserver(self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
+        self.addObserver(self.sagittalText, self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
 
         self.entitySelection = slicer.vtkMRMLTextNode()
         self.entitySelection.SetName("ENTITY")
         slicer.mrmlScene.AddNode(self.entitySelection)
-        self.entitySelectionObserver = self.entitySelection.AddObserver(self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
+        self.addObserver(self.entitySelection, self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
 
-        
         self.crosshairNode=slicer.util.getNode("Crosshair")
-        self.crosshairNodeObserver = self.crosshairNode.AddObserver(slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
+        self.addObserver(self.crosshairNode, slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
         self.greenSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeGreen")
         self.redSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeRed")
         self.yellowSlice = slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow")
-        self.redSliceObserver = self.redSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
-        self.greenSliceObserver = self.greenSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
-        self.yellowSliceObserver = self.yellowSlice.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
+        self.addObserver(self.redSlice, vtk.vtkCommand.ModifiedEvent, self.onRedSliceChanged)
+        self.addObserver(self.greenSlice, vtk.vtkCommand.ModifiedEvent, self.onGreenSliceChanged)
+        self.addObserver(self.yellowSlice, vtk.vtkCommand.ModifiedEvent, self.onYellowSliceChanged)
 
         self.camera = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode")
-        self.cameraObserver = self.camera.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
+        self.addObserver(self.camera, vtk.vtkCommand.ModifiedEvent, self.onCameraMoved)
 
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
-        slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+        self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
+        self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
     def onCameraMoved(self, *_): 
         if self.connected and self.syncCameraToggle.isChecked():
@@ -306,18 +305,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
-        self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
-        self.redSlice.RemoveObserver(self.redSliceObserver)
-        self.greenSlice.RemoveObserver(self.greenSliceObserver)
-        self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
-        self.camera.RemoveObserver(self.cameraObserver)
-        self.axialText.RemoveObserver(self.axialTextObserver)
-        self.coronalText.RemoveObserver(self.coronalTextObserver)
-        self.sagittalText.RemoveObserver(self.sagittalTextObserver)
-        self.entitySelection.RemoveObserver(self.entitySelectionObserver)
-        slicer.mrmlScene.RemoveNode(self.axialText)
-        slicer.mrmlScene.RemoveNode(self.coronalText)
-        slicer.mrmlScene.RemoveNode(self.sagittalText)
+        self.removeObservers()
         self.logic.close()
         # self.logic.close()
 
@@ -330,13 +318,8 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
-        self.crosshairNode.RemoveObserver(self.crosshairNodeObserver)
-        self.redSlice.RemoveObserver(self.redSliceObserver)
-        self.greenSlice.RemoveObserver(self.greenSliceObserver)
-        self.yellowSlice.RemoveObserver(self.yellowSliceObserver)
-        self.camera.RemoveObserver(self.cameraObserver)
+        self.removeObservers()
         self.onClearAllButtonClicked()
-        slicer.mrmlScene.RemoveObserver(self.nodeAddedObserver)
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
@@ -371,8 +354,8 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         cnode.SetTypeClient(ip, 18944)
         cnode.Start()
         # self.onConnection()
-        cnode.AddObserver(cnode.ConnectedEvent, self.processEvents)
-        cnode.AddObserver(cnode.DisconnectedEvent, self.processEvents)
+        self.addObserver(cnode, cnode.ConnectedEvent, self.processEvents)
+        self.addObserver(cnode, cnode.DisconnectedEvent, self.processEvents)
         cnode.SetCheckCRC(False)
 
     def processEvents(self, *_) -> None:
@@ -394,7 +377,7 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
         self.sendModelDisplayProperties(model)
-        model.GetDisplayNode().AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
+        self.addObserver(model.GetDisplayNode(), vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)))
 
     def sendModelDisplayProperties(self, model) -> None:
         print("sending")
