@@ -15,9 +15,16 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
 
+@parameterPack
+class SegmentationSession:
+    name: str
+    segmentationNode: Optional[slicer.vtkMRMLSegmentationNode] = None
+    volumeNode: Optional[slicer.vtkMRMLScalarVolumeNode] = None
+
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
-    sessions: list[slicer.vtkMRMLSubjectHierarchyNode] = []
+    activeSession: Optional[SegmentationSession] = None
+    sessions: list[SegmentationSession] = []
 
 
 
@@ -165,6 +172,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.sessionListSelector = qt.QListWidget()
         self.sessionListSelector.setFixedHeight(300)
+        #listen for selection changes
+        self.sessionListSelector.currentItemChanged.connect(self.syncSessionUI)
         sessionsListLayout.addWidget(self.sessionListSelector)
 
         sessionsListLayout.addStretch(1)
@@ -256,6 +265,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         layout.addWidget(self.visionProInterface)
 
+        self.initializeParameterNode()
         # Connections
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
@@ -303,7 +313,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 return
         self.volumeIsOnServer = False
         self.monailabel.onResetScribbles()
-        slicer.mrmlScene.Clear(0)
         self.showSessionsList()
 
 
@@ -365,16 +374,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def connectToImageSever(self):
         self.monailabel.onClickFetchInfo() #establish connection to the server
 
-    def onNodeAdded(self, caller, event):
-        """Called when a node is added to the scene."""
-        node = caller.GetLastNode()
-        if isinstance(node, vtkMRMLScalarVolumeNode):
-            self.showSegmentationEditor()
-            #remove other volumes
-            for volume in slicer.util.getNodes('vtkMRMLScalarVolumeNode'):
-                if volume != node:
-                    slicer.mrmlScene.RemoveNode(volume)
-
     def exportSegmentationsToModels(self):
         segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
         shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
@@ -382,27 +381,41 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         for segmentation_node in segmentation_nodes:
             slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
 
+    def syncSessionUI(self):
+        print("selection changed")
+        if self.sessionListSelector.currentRow == -1:
+            return
+        self._parameterNode.activeSession = self._parameterNode.sessions[self.sessionListSelector.currentRow]
+
     def addSession(self):
         if not self._parameterNode:
             self.initializeParameterNode()
 
-        session = slicer.vtkMRMLSubjectHierarchyNode()
-        session.SetName(str("New Session"))
-        slicer.mrmlScene.AddNode(session)
+        session = SegmentationSession()
+        session.name = "Session " + str(len(self._parameterNode.sessions) + 1)
         self._parameterNode.sessions.append(session)
 
     def removeSession(self):
         if not self._parameterNode:
             self.initializeParameterNode()
-        pass
+        if self.sessionListSelector.currentRow == -1:
+            return
+        if slicer.util.confirmOkCancelDisplay(_("Are you sure you want to remove this session?")):
+                self._parameterNode.sessions.pop(self.sessionListSelector.currentRow)
+
+        self.refreshSessionListSelector()
 
     def refreshSessionListSelector(self):
         self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
+        if self._parameterNode.activeSession:
+            self.sessionListSelector.setCurrentRow(self._parameterNode.sessions.index(self._parameterNode.activeSession))
+        else: 
+            self.sessionListSelector.setCurrentRow(-1)
+            self.showSessionsList()
         self.sessionListSelector.clear()
-        print(self._parameterNode.sessions)
         for session in self._parameterNode.sessions:
             if session:
-                self.sessionListSelector.addItem(session.GetName())
+                self.sessionListSelector.addItem(session.name)
     
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
