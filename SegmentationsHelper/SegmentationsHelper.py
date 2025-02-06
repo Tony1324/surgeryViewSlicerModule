@@ -23,7 +23,7 @@ class SegmentationSession:
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
-    activeSession: Optional[SegmentationSession] = None
+    activeSession: Optional[int] = None
     sessions: list[SegmentationSession] = []
 
 
@@ -178,10 +178,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         sessionsListLayout.addStretch(1)
 
-        nextButton = qt.QPushButton("Next")
-        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        nextButton.clicked.connect(self.showImageSelector)
-        sessionsListLayout.addWidget(nextButton)
+        self.loadSessionButton = qt.QPushButton("Load Session")
+        self.loadSessionButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.loadSessionButton.clicked.connect(self.loadSession)
+        sessionsListLayout.addWidget(self.loadSessionButton)
 
         layout.addWidget(self.sessionsList)
         
@@ -205,6 +205,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imageSelectorLayout.addStretch(1)
 
         self.volumeIsOnServer = False
+
+        self.sessionNameInput = qt.QLineEdit()
+        self.sessionNameInput.setPlaceholderText("Session Name")
+        self.sessionNameInput.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
+        self.sessionNameInput.textChanged.connect(self.updateSessionName)
+        imageSelectorLayout.addWidget(self.sessionNameInput)
+
 
         # invoke Add Data window
         addDataButton = qt.QPushButton("Choose Volume From Files")
@@ -380,12 +387,22 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
         for segmentation_node in segmentation_nodes:
             slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
+    
+    def loadSession(self):
+        if self.sessionListSelector.currentRow == -1:
+            self._parameterNode.activeSession = None
+            return
+        self._parameterNode.activeSession = self.sessionListSelector.currentRow
+        self.showImageSelector()
 
+    def updateSessionName(self,*_):
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].name = str(self.sessionNameInput.text)
+        
     def syncSessionUI(self):
-        print("selection changed")
+        self.loadSessionButton.setEnabled(self.sessionListSelector.currentRow != -1)
         if self.sessionListSelector.currentRow == -1:
             return
-        self._parameterNode.activeSession = self._parameterNode.sessions[self.sessionListSelector.currentRow]
 
     def addSession(self):
         if not self._parameterNode:
@@ -401,14 +418,24 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.sessionListSelector.currentRow == -1:
             return
         if slicer.util.confirmOkCancelDisplay(_("Are you sure you want to remove this session?")):
-                self._parameterNode.sessions.pop(self.sessionListSelector.currentRow)
+            if self.hasActiveSession():
+                if self._parameterNode.activeSession > self.sessionListSelector.currentRow:
+                    self._parameterNode.activeSession -= 1
+                elif self._parameterNode.activeSession == self.sessionListSelector.currentRow:
+                    self._parameterNode.activeSession = None
+                                
+            self._parameterNode.sessions.pop(self.sessionListSelector.currentRow)
 
-        self.refreshSessionListSelector()
+
+    def hasActiveSession(self):
+        return self._parameterNode.activeSession != None and self._parameterNode.activeSession < len(self._parameterNode.sessions)
 
     def refreshSessionListSelector(self):
         self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
-        if self._parameterNode.activeSession:
-            self.sessionListSelector.setCurrentRow(self._parameterNode.sessions.index(self._parameterNode.activeSession))
+
+        if self.hasActiveSession():
+            self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
+            self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.showSessionsList()
