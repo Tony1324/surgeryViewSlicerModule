@@ -214,16 +214,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
 
         # invoke Add Data window
-        addDataButton = qt.QPushButton("Choose Volume From Files")
-        addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,135,255)")
-        addDataButton.clicked.connect(slicer.util.openAddDataDialog)
-        imageSelectorLayout.addWidget(addDataButton)
+        self.addDataButton = qt.QPushButton("Choose Volume From Files")
+        self.addDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,135,255)")
+        self.addDataButton.clicked.connect(slicer.util.openAddDataDialog)
+        imageSelectorLayout.addWidget(self.addDataButton)
 
         # Load Data from Server
-        loadDataButton = qt.QPushButton("Load Volume from Server")
-        loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,200,100)")
-        loadDataButton.clicked.connect(self.loadDataFromServer)
-        imageSelectorLayout.addWidget(loadDataButton)
+        # loadDataButton = qt.QPushButton("Load Volume from Server")
+        # loadDataButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,200,100)")
+        # loadDataButton.clicked.connect(self.loadDataFromServer)
+        # imageSelectorLayout.addWidget(loadDataButton)
 
         imageSelectorLayout.addStretch(1)
 
@@ -234,7 +234,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         layout.addWidget(self.imageSelector)
 
-        # self.nodeAddedObserver = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
+        self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
 
         #SEGMENTATIONS
 
@@ -285,7 +285,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.connectToImageServer()
         self.monailabel.ui.strategyBox.currentText = "first"
         self.monailabel.onNextSampleButton()
-        self.volumeIsOnServer = True
+        # self.volumeIsOnServer = True
 
     def onFinishConfiguration(self):
         self.showSessionsList()
@@ -297,10 +297,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.setIPAddresses()
         self.connectToImageSever()
-        if not self.volumeIsOnServer:
-            self.monailabel.onUploadImage()
+        # if not self.volumeIsOnServer:
+        self.monailabel.onUploadImage()
         self.monailabel.onClickSegmentation()
-        self.volumeIsOnServer = False
+        # self.volumeIsOnServer = False
         self.showSegmentationEditor()
 
     def onFinishSegmentation(self):
@@ -311,17 +311,19 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.setIPAddresses()
    
     def resetToSessionsList(self):
-        if not slicer.util.confirmOkCancelDisplay(
-                _(
-                    "This will close current scene.  Please make sure you have saved your current work.\n"
-                    "Are you sure to continue?"
-                )
-            ):
-                return
-        self.volumeIsOnServer = False
+        # self.volumeIsOnServer = False
         self.monailabel.onResetScribbles()
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode.GetDisplayNode().SetVisibility(False)
+        self._parameterNode.activeSession = None
         self.showSessionsList()
 
+    @vtk.calldata_type(vtk.VTK_OBJECT)
+    def onNodeAdded(self, caller, event, callData):
+        if self.hasActiveSession():
+            node = callData
+            if isinstance(node, vtkMRMLScalarVolumeNode):
+                self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = node
 
     #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
@@ -358,6 +360,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
         self.visionProInterface.show()
+    
+    def showVolumeNode(self, volumeNode):
+        #loop through all volume nodes and hide them
+        slicer.util.setSliceViewerLayers(background=volumeNode)
+        slicer.util.resetSliceViews()
+
 
     def validateIPAddress(self, *_):
         if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
@@ -403,6 +411,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.loadSessionButton.setEnabled(self.sessionListSelector.currentRow != -1)
         if self.sessionListSelector.currentRow == -1:
             return
+        session = self._parameterNode.sessions[self.sessionListSelector.currentRow]
+        if session and session.volumeNode:
+            self.showVolumeNode(session.volumeNode)
 
     def addSession(self):
         if not self._parameterNode:
@@ -428,28 +439,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
 
     def hasActiveSession(self):
+        if not self._parameterNode:
+            self.initializeParameterNode()
         return self._parameterNode.activeSession != None and self._parameterNode.activeSession < len(self._parameterNode.sessions)
-
-    def refreshSessionListSelector(self):
-        self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
-
-        if self.hasActiveSession():
-            self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
-            self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-        else: 
-            self.sessionListSelector.setCurrentRow(-1)
-            self.showSessionsList()
-        self.sessionListSelector.clear()
-        for session in self._parameterNode.sessions:
-            if session:
-                self.sessionListSelector.addItem(session.name)
-    
+            
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
         self.setParameterNode(self.logic.getParameterNode())
-        self.refreshSessionListSelector()
+        self.onParameterNodeModified()
 
     def setParameterNode(self, parameterNode: SegmentationsHelperParameterNode) -> None:
         if self._parameterNode:
@@ -458,9 +457,26 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self._parameterNode:
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
 
-    def onParameterNodeModified(self, caller, event):
-        #TODO: update gui based on parameter node
-        self.refreshSessionListSelector()
+    def onParameterNodeModified(self, *_):
+        self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
+
+        if self.hasActiveSession():
+            self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
+            self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+            if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
+                self.showVolumeNode(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
+                self.addDataButton.setText(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode.GetName())
+                self.addDataButton.setEnabled(False)
+            else:
+                self.addDataButton.setText("Choose Volume From Files")
+                self.addDataButton.setEnabled(True)
+        else: 
+            self.sessionListSelector.setCurrentRow(-1)
+            self.showSessionsList()
+        self.sessionListSelector.clear()
+        for session in self._parameterNode.sessions:
+            if session:
+                self.sessionListSelector.addItem(session.name)
         
 
     def cleanup(self) -> None:
@@ -475,7 +491,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def exit(self) -> None:
         """Called each time the user opens a different module."""
-        self._parameterNode.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
+        self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
         self._parameterNode = None
 
     def onSceneStartClose(self, caller, event) -> None:
