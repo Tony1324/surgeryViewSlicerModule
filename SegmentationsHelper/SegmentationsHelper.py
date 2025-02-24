@@ -14,6 +14,7 @@ import qt
 from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
+import tempfile
 
 @parameterPack
 class SegmentationSession:
@@ -199,12 +200,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         returnButton = qt.QPushButton("Back to Sessions List")
         returnButton.setStyleSheet("font-size: 15px")
         returnButton.setFixedWidth(200)
-        returnButton.clicked.connect(self.showSessionsList)
+        returnButton.clicked.connect(self.resetToSessionsList)
         imageSelectorLayout.addWidget(returnButton)
 
         imageSelectorLayout.addStretch(1)
 
-        self.volumeIsOnServer = False
+        # self.volumeIsOnServer = False
 
         self.sessionNameInput = qt.QLineEdit()
         self.sessionNameInput.setPlaceholderText("Session Name")
@@ -292,16 +293,48 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.saveIPAddresses()
 
     def onPerformSegmentation(self):
-        if slicer.mrmlScene.GetNodesByClass("vtkMRMLVolumeNode").GetNumberOfItems() == 0: 
-            return
 
         self.setIPAddresses()
-        self.connectToImageSever()
+        self.connectToImageServer()
         # if not self.volumeIsOnServer:
-        self.monailabel.onUploadImage()
-        self.monailabel.onClickSegmentation()
+        if self.hasActiveSession():
+            if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
+                self.uploadVolume(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
+
         # self.volumeIsOnServer = False
         self.showSegmentationEditor()
+
+
+    #re-implementation from monai-label module
+    def uploadVolume(self, volumeNode):
+        image_id = volumeNode.GetName()
+
+        if not self.monailabel.getPermissionForImageDataUpload():
+            return False
+        
+        if not volumeNode:
+            return False
+        
+        try:
+            qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+            in_file = tempfile.NamedTemporaryFile(suffix=self.monailabel.file_ext, dir=self.monailabel.tmpdir).name
+
+            slicer.util.saveNode(volumeNode, in_file)
+
+            self.monailabel.logic.upload_image(in_file, image_id)
+            self.monailabel.current_sample["session"] = False
+
+            self.monailabel._volumeNode = volumeNode
+            self.monailabel.initSample({"id": image_id}, autosegment=True)
+            qt.QApplication.restoreOverrideCursor()
+
+            return True
+        except BaseException as e:
+            msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
+            qt.QApplication.restoreOverrideCursor()
+            slicer.util.errorDisplay(
+                _("Failed to upload volume to Server.\n{message}").format(message=msg),
+            )
 
     def onFinishSegmentation(self):
         self.showVisionProInterface()
@@ -314,7 +347,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # self.volumeIsOnServer = False
         self.monailabel.onResetScribbles()
         if self.hasActiveSession():
-            self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode.GetDisplayNode().SetVisibility(False)
+            volume = self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode
+            if volume:
+                volume.GetDisplayNode().SetVisibility(False)
         self._parameterNode.activeSession = None
         self.showSessionsList()
 
@@ -386,7 +421,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.monailabel.ui.serverComboBox.currentText = "http://"+str(image_server_address)+":8000"
         self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
 
-    def connectToImageSever(self):
+    def connectToImageServer(self):
         self.monailabel.onClickFetchInfo() #establish connection to the server
 
     def exportSegmentationsToModels(self):
@@ -412,7 +447,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.sessionListSelector.currentRow == -1:
             return
         session = self._parameterNode.sessions[self.sessionListSelector.currentRow]
-        if session and session.volumeNode:
+        if session:
             self.showVolumeNode(session.volumeNode)
 
     def addSession(self):
@@ -426,16 +461,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def removeSession(self):
         if not self._parameterNode:
             self.initializeParameterNode()
-        if self.sessionListSelector.currentRow == -1:
+        row = self.sessionListSelector.currentRow
+        if row == -1:
             return
         if slicer.util.confirmOkCancelDisplay(_("Are you sure you want to remove this session?")):
             if self.hasActiveSession():
-                if self._parameterNode.activeSession > self.sessionListSelector.currentRow:
+                if self._parameterNode.activeSession > row:
                     self._parameterNode.activeSession -= 1
-                elif self._parameterNode.activeSession == self.sessionListSelector.currentRow:
+                elif self._parameterNode.activeSession == row:
                     self._parameterNode.activeSession = None
-                                
-            self._parameterNode.sessions.pop(self.sessionListSelector.currentRow)
+            slicer.mrmlScene.RemoveNode(self._parameterNode.sessions[row].volumeNode)
+            self._parameterNode.sessions.pop(row)
 
 
     def hasActiveSession(self):
@@ -463,8 +499,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
             self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+            self.showVolumeNode(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
             if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
-                self.showVolumeNode(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
                 self.addDataButton.setText(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode.GetName())
                 self.addDataButton.setEnabled(False)
             else:
