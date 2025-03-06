@@ -354,8 +354,8 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         cnode.SetTypeClient(ip, 18944)
         cnode.Start()
         # self.onConnection()
-        self.addObserver(cnode, cnode.ConnectedEvent, self.processEvents)
-        self.addObserver(cnode, cnode.DisconnectedEvent, self.processEvents)
+        cnode.AddObserver(cnode.ConnectedEvent, self.processEvents)
+        cnode.AddObserver(cnode.DisconnectedEvent, self.processEvents)
         cnode.SetCheckCRC(False)
 
     def processEvents(self, *_) -> None:
@@ -377,7 +377,8 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
         self.connector.RegisterOutgoingMRMLNode(model)
         self.connector.PushNode(model)
         self.sendModelDisplayProperties(model)
-        self.addObserver(model.GetDisplayNode(), vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)))
+        model.GetDisplayNode().AddObserver(vtk.vtkCommand.ModifiedEvent, (lambda a, b: self.sendModelDisplayProperties(model)) )
+
 
     def sendModelDisplayProperties(self, model) -> None:
         print("sending")
