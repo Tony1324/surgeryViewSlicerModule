@@ -300,7 +300,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
                 self.uploadVolume(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
-
+            self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode = self.monailabel._segmentationNode 
+        self.monailabel.onClickSegmentation()
         # self.volumeIsOnServer = False
         self.showSegmentationEditor()
 
@@ -325,7 +326,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.monailabel.current_sample["session"] = False
 
             self.monailabel._volumeNode = volumeNode
-            self.monailabel.initSample({"id": image_id}, autosegment=True)
+            self.monailabel.initSample({"id": image_id}, autosegment=False)
+            
             qt.QApplication.restoreOverrideCursor()
 
             return True
@@ -345,11 +347,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
    
     def resetToSessionsList(self):
         # self.volumeIsOnServer = False
-        self.monailabel.onResetScribbles()
+        # self.monailabel.onResetScribbles()
         if self.hasActiveSession():
-            volume = self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode
-            if volume:
-                volume.GetDisplayNode().SetVisibility(False)
+            self.showVolumeNode(None)
         self._parameterNode.activeSession = None
         self.showSessionsList()
 
