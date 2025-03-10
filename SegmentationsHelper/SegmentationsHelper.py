@@ -3,6 +3,8 @@ import os
 from typing import Annotated, Optional
 
 import vtk
+import SimpleITK as sitk
+import sitkUtils
 
 import slicer
 from slicer.parameterNodeWrapper import *
@@ -19,8 +21,8 @@ import tempfile
 @parameterPack
 class SegmentationSession:
     name: str
-    segmentationNode: Optional[slicer.vtkMRMLSegmentationNode] = None
-    volumeNode: Optional[slicer.vtkMRMLScalarVolumeNode] = None
+    segmentationNode: Optional[str] = None
+    volumeNode: Optional[str] = None
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
@@ -295,16 +297,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onPerformSegmentation(self):
 
         self.setIPAddresses()
-        self.connectToImageServer()
-        # if not self.volumeIsOnServer:
         if self.hasActiveSession():
-            if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
-                self.uploadVolume(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
-            self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode = self.monailabel._segmentationNode 
-        self.monailabel.onClickSegmentation()
-        # self.volumeIsOnServer = False
-        self.showSegmentationEditor()
-
+            volume = self.getActiveSessionVolumeNode()
+            if volume:
+                self.uploadVolume(volume)
+            slicer.app.processEvents()
+            self.performSegmentation()
+            self.showSegmentationEditor()
 
     #re-implementation from monai-label module
     def uploadVolume(self, volumeNode):
@@ -317,20 +316,21 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return False
         
         try:
-            qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
             in_file = tempfile.NamedTemporaryFile(suffix=self.monailabel.file_ext, dir=self.monailabel.tmpdir).name
 
             slicer.util.saveNode(volumeNode, in_file)
 
             self.monailabel.logic.upload_image(in_file, image_id)
-            self.monailabel.current_sample["session"] = False
 
-            self.monailabel._volumeNode = volumeNode
-            self.monailabel.initSample({"id": image_id}, autosegment=False)
-            
-            qt.QApplication.restoreOverrideCursor()
+            if self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode is None:
+                name = "segmentation_" + image_id
+                segmentationNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
+                segmentationNode.SetName(name)
+                segmentationNode.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
+                self.setActiveSessionSegmentationNode(segmentationNode)
 
             return True
+        
         except BaseException as e:
             msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
             qt.QApplication.restoreOverrideCursor()
@@ -338,9 +338,156 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 _("Failed to upload volume to Server.\n{message}").format(message=msg),
             )
 
+    def performSegmentation(self):
+        # try:
+        model = "deepedit"
+        image_file = self.getActiveSessionVolumeNode().GetName()
+        params = self.monailabel.getParamsFromConfig("infer", model)
+
+        result_file, params = self.monailabel.logic.infer(model, image_file, params)
+        print(f"Result Params for Segmentation: {params}")
+
+        labels = (
+            params.get("label_names") if params and params.get("label_names") else self.models[model].get("labels")
+        )
+        if labels and isinstance(labels, dict):
+            labels = [k for k, _ in sorted(labels.items(), key=lambda item: item[1])]
+        # self.monailabel._segmentNode = self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode
+        self.updateSegmentationMask(result_file, labels)
+        # except BaseException as e:
+        #     msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
+        #     slicer.util.errorDisplay(
+        #         _("Failed to run inference in MONAI Label Server.\n{message}").format(message=msg)
+        #     )
+
+    def updateSegmentationMask(self, in_file, labels):
+
+        if in_file and not os.path.exists(in_file):
+            return False
+
+        segmentationNode = self.getActiveSessionSegmentationNode()
+        segmentation = segmentationNode.GetSegmentation()
+
+        if in_file is None:
+            for label in labels:
+                if not segmentation.GetSegmentIdBySegmentName(label):
+                    segmentation.AddEmptySegment(label, label, self.getLabelColor(label))
+            return True
+
+        if in_file.endswith(".seg.nrrd") and self.file_ext == ".seg.nrrd":
+            source_node = slicer.modules.segmentations.logic().LoadSegmentationFromFile(in_file, False)
+            destination_node = segmentationNode
+            destination_segmentations = destination_node.GetSegmentation()
+            source_segmentations = source_node.GetSegmentation()
+
+            destination_segmentations.DeepCopy(source_segmentations)
+
+            if self._volumeNode:
+                destination_node.SetReferenceImageGeometryParameterFromVolumeNode(self._volumeNode)
+
+            slicer.mrmlScene.RemoveNode(source_node)
+        elif in_file.endswith(".json"):
+            slicer.util.loadMarkups(in_file)
+            detectionROIs = slicer.mrmlScene.GetNodesByClass("vtkMRMLMarkupsROINode")  # Get all ROI node from scene
+            numNodes = detectionROIs.GetNumberOfItems()
+            for i in range(numNodes):
+                ROINode = detectionROIs.GetItemAsObject(i)
+                if ROINode.GetName() != "Scribbles ROI":
+                    ROINode.SetName(f"Detection ROI - {i}")
+                    ROINode.GetDisplayNode().SetInteractionHandleScale(0.7)  # set handle size
+        else:
+            labels = [label for label in labels if label != "background"]
+
+            labelImage = sitk.ReadImage(in_file)
+            labelmapVolumeNode = sitkUtils.PushVolumeToSlicer(labelImage, None, className="vtkMRMLLabelMapVolumeNode")
+
+            segmentIds = vtk.vtkStringArray()
+            for label in labels:
+                segmentIds.InsertNextValue(label)
+
+            # faster import (based on selected segmentIds)
+
+            # ImportLabelmapToSegmentationNode overwrites segments, which removes all non-source representations.
+            # We remember if closed surface representation was present and restore it after import.
+            segmentationRepresentationNames = []
+            segmentationNode.GetSegmentation().GetContainedRepresentationNames(segmentationRepresentationNames)
+            hasClosedSurfaceRepresentation = (
+                slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()
+                in segmentationRepresentationNames
+            )
+
+            slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(
+                labelmapVolumeNode, segmentationNode, segmentIds
+            )
+
+            if hasClosedSurfaceRepresentation:
+                segmentationNode.CreateClosedSurfaceRepresentation()
+
+            slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+        return True
+
+    def onSaveLabel(self):
+        labelmapVolumeNode = None
+        result = None
+
+        try:
+            qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+
+            segmentationNode = self.getActiveSessionSegmentationNode()
+            segmentation = segmentationNode.GetSegmentation()
+            totalSegments = segmentation.GetNumberOfSegments()
+            segmentIds = [segmentation.GetNthSegmentID(i) for i in range(totalSegments)]
+
+            # remove background and scribbles labels
+            label_info = []
+            save_segment_ids = vtk.vtkStringArray()
+            for idx, segmentId in enumerate(segmentIds):
+                segment = segmentation.GetSegment(segmentId)
+                if segment.GetName() in ["background", "foreground_scribbles", "background_scribbles"]:
+                    logging.info(f"Removing segment {segmentId}: {segment.GetName()}")
+                    continue
+
+                save_segment_ids.InsertNextValue(segmentId)
+                label_info.append({"name": segment.GetName(), "idx": idx + 1})
+                # label_info.append({"color": segment.GetColor()})
+
+            # export labelmap
+            labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+            slicer.modules.segmentations.logic().ExportSegmentsToLabelmapNode(
+                segmentationNode, save_segment_ids, labelmapVolumeNode, self._volumeNode
+            )
+
+            label_in = tempfile.NamedTemporaryFile(suffix=self.file_ext, dir=self.tmpdir).name
+
+            if (
+                slicer.util.settingsValue("MONAILabel/allowOverlappingSegments", True, converter=slicer.util.toBool)
+                and slicer.util.settingsValue("MONAILabel/fileExtension", self.file_ext) == ".seg.nrrd"
+            ):
+                slicer.util.saveNode(segmentationNode, label_in)
+            else:
+                slicer.util.saveNode(labelmapVolumeNode, label_in)
+
+            result = self.monailabel.logic.save_label(self.current_sample["id"], label_in, {"label_info": label_info})
+
+        except BaseException as e:
+            msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
+            slicer.util.errorDisplay(
+                _("Failed to save Label to MONAI Label Server.\n{message}").format(message=msg)
+            )
+        finally:
+            qt.QApplication.restoreOverrideCursor()
+
+            if labelmapVolumeNode:
+                slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
+            if result:
+                slicer.util.infoDisplay(
+                    _("Label-Mask saved into MONAI Label Server"), detailedText=json.dumps(result, indent=2)
+                )
+
+
     def onFinishSegmentation(self):
         self.showVisionProInterface()
-        self.monailabel.onSaveLabel()
+        self.onSaveLabel()
         self.monailabel.onTraining()
         self.exportSegmentationsToModels()
         self.setIPAddresses()
@@ -358,7 +505,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             node = callData
             if isinstance(node, vtkMRMLScalarVolumeNode):
-                self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = node
+               self.setActiveSessionVolumeNode(node)
 
     #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
@@ -397,10 +544,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProInterface.show()
     
     def showVolumeNode(self, volumeNode):
-        #loop through all volume nodes and hide them
-        slicer.util.setSliceViewerLayers(background=volumeNode)
-        slicer.util.resetSliceViews()
-
+        slicer.util.setSliceViewerLayers(volumeNode)
 
     def validateIPAddress(self, *_):
         if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
@@ -418,11 +562,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         openigt_address = self.openigt_address_input.text
         image_server_address = self.image_server_address_input.text
         self.monailabel.logic.setServer("http://"+str(image_server_address)+":8000")
-        self.monailabel.ui.serverComboBox.currentText = "http://"+str(image_server_address)+":8000"
+        self.monailabel.logic.setClientId(slicer.util.settingsValue("MONAILabel/clientId", "user-xyz"))
         self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
-
-    def connectToImageServer(self):
-        self.monailabel.onClickFetchInfo() #establish connection to the server
 
     def exportSegmentationsToModels(self):
         segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
@@ -431,6 +572,33 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         for segmentation_node in segmentation_nodes:
             slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
     
+    def getActiveSession(self):
+        if self.hasActiveSession():
+            return self._parameterNode.sessions[self._parameterNode.activeSession]
+        return None
+    
+    def getActiveSessionVolumeNode(self):
+        if self.hasActiveSession():
+            name =  self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode
+            if name:
+                return slicer.mrmlScene.GetNodeByID(name)
+        return None
+    
+    def getActiveSessionSegmentationNode(self):
+        if self.hasActiveSession():
+            name =  self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode
+            if name:
+                return slicer.mrmlScene.GetNodeByID(name)
+        return None
+    
+    def setActiveSessionVolumeNode(self, volumeNode):
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = volumeNode.GetID()
+    
+    def setActiveSessionSegmentationNode(self, segmentationNode):
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode = segmentationNode.GetID()
+
     def loadSession(self):
         if self.sessionListSelector.currentRow == -1:
             self._parameterNode.activeSession = None
@@ -448,7 +616,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return
         session = self._parameterNode.sessions[self.sessionListSelector.currentRow]
         if session:
-            self.showVolumeNode(session.volumeNode)
+            self.showVolumeNode(slicer.mrmlScene.GetNodeByID(session.volumeNode))
 
     def addSession(self):
         if not self._parameterNode:
@@ -499,9 +667,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
             self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-            self.showVolumeNode(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode)
-            if self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode:
-                self.addDataButton.setText(self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode.GetName())
+            self.showVolumeNode(self.getActiveSessionVolumeNode())
+
+            volume = self.getActiveSessionVolumeNode()
+            if volume:
+                self.addDataButton.setText(volume.GetName())
                 self.addDataButton.setEnabled(False)
             else:
                 self.addDataButton.setText("Choose Volume From Files")
