@@ -483,12 +483,28 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 slicer.util.infoDisplay(
                     _("Label-Mask saved into MONAI Label Server"), detailedText=json.dumps(result, indent=2)
                 )
+    def onTraining(self):
+        status = None
+        try:
+            qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
+            model = "deepedit"
+
+            params = self.monailabel.getParamsFromConfig("train", model)
+            status = self.monailabel.logic.train_start(model, params)
+
+        except BaseException as e:
+            msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
+            slicer.util.errorDisplay(
+                _("Failed to run training in MONAI Label Server.\n{message}").format(message=msg)
+            )
+        finally:
+            qt.QApplication.restoreOverrideCursor()
 
     def onFinishSegmentation(self):
         self.showVisionProInterface()
         self.onSaveLabel()
-        self.monailabel.onTraining()
+        self.onTraining()
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
@@ -496,13 +512,14 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # self.volumeIsOnServer = False
         # self.monailabel.onResetScribbles()
         if self.hasActiveSession():
-            self.showVolumeNode(None)
+            self.showSession(None)
         self._parameterNode.activeSession = None
         self.showSessionsList()
 
     @vtk.calldata_type(vtk.VTK_OBJECT)
     def onNodeAdded(self, caller, event, callData):
-        if self.hasActiveSession():
+        if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
+
             node = callData
             if isinstance(node, vtkMRMLScalarVolumeNode):
                self.setActiveSessionVolumeNode(node)
@@ -543,8 +560,15 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.configurationScreen.hide()
         self.visionProInterface.show()
     
-    def showVolumeNode(self, volumeNode):
-        slicer.util.setSliceViewerLayers(volumeNode)
+    def showSession(self, session):
+        for node in slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode"):
+            node.GetDisplayNode().SetVisibility(False)
+        if session:
+            slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
+            if (s:=self.getSegmentationNodeFromSession(session)) != None:
+                s.GetDisplayNode().SetVisibility(True)
+        else:
+            slicer.util.setSliceViewerLayers(None)
 
     def validateIPAddress(self, *_):
         if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
@@ -577,22 +601,29 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return self._parameterNode.sessions[self._parameterNode.activeSession]
         return None
     
+    def getVolumeNodeFromSession(self, session):
+        if session and session.volumeNode:
+            return slicer.mrmlScene.GetNodeByID(session.volumeNode)
+        return None
+    
     def getActiveSessionVolumeNode(self):
         if self.hasActiveSession():
-            name =  self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode
-            if name:
-                return slicer.mrmlScene.GetNodeByID(name)
+           return self.getVolumeNodeFromSession(self._parameterNode.sessions[self._parameterNode.activeSession])
+        return None
+    
+    def getSegmentationNodeFromSession(self, session):
+        if session and session.segmentationNode:
+            return slicer.mrmlScene.GetNodeByID(session.segmentationNode)
         return None
     
     def getActiveSessionSegmentationNode(self):
         if self.hasActiveSession():
-            name =  self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode
-            if name:
-                return slicer.mrmlScene.GetNodeByID(name)
+            return self.getSegmentationNodeFromSession(self._parameterNode.sessions[self._parameterNode.activeSession])
         return None
     
     def setActiveSessionVolumeNode(self, volumeNode):
         if self.hasActiveSession():
+            print(volumeNode.GetID())
             self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = volumeNode.GetID()
     
     def setActiveSessionSegmentationNode(self, segmentationNode):
@@ -616,7 +647,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return
         session = self._parameterNode.sessions[self.sessionListSelector.currentRow]
         if session:
-            self.showVolumeNode(slicer.mrmlScene.GetNodeByID(session.volumeNode))
+            self.showSession(session)
 
     def addSession(self):
         if not self._parameterNode:
@@ -638,7 +669,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     self._parameterNode.activeSession -= 1
                 elif self._parameterNode.activeSession == row:
                     self._parameterNode.activeSession = None
-            slicer.mrmlScene.RemoveNode(self._parameterNode.sessions[row].volumeNode)
+            if v:=self._parameterNode.sessions[row].volumeNode:
+                slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNodeByID(v))
+            if s:=self._parameterNode.sessions[row].segmentationNode:
+                slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetNodeByID(s))
             self._parameterNode.sessions.pop(row)
 
 
@@ -667,7 +701,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
             self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-            self.showVolumeNode(self.getActiveSessionVolumeNode())
+            self.showSession(self._parameterNode.sessions[self._parameterNode.activeSession])
 
             volume = self.getActiveSessionVolumeNode()
             if volume:
