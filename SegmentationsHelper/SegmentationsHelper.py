@@ -645,15 +645,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     
 
     def showSession(self, session):
+        slicer.util.resetSliceViews()
         for session in self._parameterNode.sessions:
-            self.getVolumeNodeFromSession(session).GetDisplayNode().SetVisibility(False)
-            self.getGeometryNodeFromSession(session).GetDisplayNode().SetVisibility(False)
+            self.getSegmentationNodeFromSession(session).GetDisplayNode().SetVisibility(False)
+            self.getGeometryNodeFromSession(session).VisibilityOff()
         if session:
             slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
             if (s:=self.getSegmentationNodeFromSession(session)) != None:
                 s.GetDisplayNode().SetVisibility(True)
             if (g:=self.getGeometryNodeFromSession(session)) != None:
-                g.GetDisplayNode().SetVisibility(True)
+                g.GetDisplayNode().VisibilityOn()
         else:
             slicer.util.setSliceViewerLayers(None)
 
