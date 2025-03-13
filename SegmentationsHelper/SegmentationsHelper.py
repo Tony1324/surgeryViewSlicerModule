@@ -294,6 +294,85 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.showSessionsList()
         self.saveIPAddresses()
 
+    @vtk.calldata_type(vtk.VTK_OBJECT)
+    def onNodeAdded(self, caller, event, callData):
+        if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
+
+            node = callData
+            if isinstance(node, vtkMRMLScalarVolumeNode):
+               self.setActiveSessionVolumeNode(node)
+
+    #HANDLE LAYOUT "TABS"
+    def showConfigurationScreen(self):
+        self.imageSelector.hide()
+        self.segmentationEditor.hide()
+        self.visionProInterface.hide()
+        self.sessionsList.hide()
+        self.configurationScreen.show()
+    
+    def showSessionsList(self):
+        self.imageSelector.hide()
+        self.segmentationEditor.hide()
+        self.visionProInterface.hide()
+        self.configurationScreen.hide()
+        self.sessionsList.show()
+
+    def showImageSelector(self):
+        self.sessionsList.hide()
+        self.segmentationEditor.hide()
+        self.visionProInterface.hide()
+        self.configurationScreen.hide()
+        self.imageSelector.show()
+    
+    def showSegmentationEditor(self):
+        self.sessionsList.hide()
+        self.imageSelector.hide()
+        self.visionProInterface.hide()
+        self.configurationScreen.hide()
+        self.segmentationEditor.show()
+    
+    def showVisionProInterface(self):
+        self.sessionsList.hide()
+        self.imageSelector.hide()
+        self.segmentationEditor.hide()
+        self.configurationScreen.hide()
+        self.visionProInterface.show()
+    
+    def resetToSessionsList(self):
+        # self.volumeIsOnServer = False
+        # self.monailabel.onResetScribbles()
+        if self.hasActiveSession():
+            self.showSession(None)
+        self._parameterNode.activeSession = None
+        self.showSessionsList()
+
+
+    def validateIPAddress(self, *_):
+        if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
+            self.toImageSelectorButton.setEnabled(False)
+        else:
+            self.toImageSelectorButton.setEnabled(True)
+
+    def saveIPAddresses(self):
+        """Save IP addresses to settings and move to the next screen."""
+        settings = qt.QSettings()
+        settings.setValue("SegmentationsHelper/openigt_address", self.openigt_address_input.text)
+        settings.setValue("SegmentationsHelper/image_server_address", self.image_server_address_input.text)
+
+    def setIPAddresses(self):
+        openigt_address = self.openigt_address_input.text
+        image_server_address = self.image_server_address_input.text
+        self.monailabel.logic.setServer("http://"+str(image_server_address)+":8000")
+        self.monailabel.logic.setClientId(slicer.util.settingsValue("MONAILabel/clientId", "user-xyz"))
+        self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
+
+    def exportSegmentationsToModels(self):
+        segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+        shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+        exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
+        for segmentation_node in segmentation_nodes:
+            slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
+
     def onPerformSegmentation(self):
 
         self.setIPAddresses()
@@ -305,7 +384,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.performSegmentation()
             self.showSegmentationEditor()
 
-    #re-implementation from monai-label module
     def uploadVolume(self, volumeNode):
         image_id = volumeNode.GetName()
 
@@ -483,15 +561,14 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 slicer.util.infoDisplay(
                     _("Label-Mask saved into MONAI Label Server"), detailedText=json.dumps(result, indent=2)
                 )
+    
     def onTraining(self):
-        status = None
         try:
             qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
             model = "deepedit"
 
             params = self.monailabel.getParamsFromConfig("train", model)
-            status = self.monailabel.logic.train_start(model, params)
 
         except BaseException as e:
             msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
@@ -508,94 +585,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.exportSegmentationsToModels()
         self.setIPAddresses()
    
-    def resetToSessionsList(self):
-        # self.volumeIsOnServer = False
-        # self.monailabel.onResetScribbles()
-        if self.hasActiveSession():
-            self.showSession(None)
-        self._parameterNode.activeSession = None
-        self.showSessionsList()
-
-    @vtk.calldata_type(vtk.VTK_OBJECT)
-    def onNodeAdded(self, caller, event, callData):
-        if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
-
-            node = callData
-            if isinstance(node, vtkMRMLScalarVolumeNode):
-               self.setActiveSessionVolumeNode(node)
-
-    #HANDLE LAYOUT "TABS"
-    def showConfigurationScreen(self):
-        self.imageSelector.hide()
-        self.segmentationEditor.hide()
-        self.visionProInterface.hide()
-        self.sessionsList.hide()
-        self.configurationScreen.show()
-    
-    def showSessionsList(self):
-        self.imageSelector.hide()
-        self.segmentationEditor.hide()
-        self.visionProInterface.hide()
-        self.configurationScreen.hide()
-        self.sessionsList.show()
-
-    def showImageSelector(self):
-        self.sessionsList.hide()
-        self.segmentationEditor.hide()
-        self.visionProInterface.hide()
-        self.configurationScreen.hide()
-        self.imageSelector.show()
-    
-    def showSegmentationEditor(self):
-        self.sessionsList.hide()
-        self.imageSelector.hide()
-        self.visionProInterface.hide()
-        self.configurationScreen.hide()
-        self.segmentationEditor.show()
-    
-    def showVisionProInterface(self):
-        self.sessionsList.hide()
-        self.imageSelector.hide()
-        self.segmentationEditor.hide()
-        self.configurationScreen.hide()
-        self.visionProInterface.show()
-    
-    def showSession(self, session):
-        for node in slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode"):
-            node.GetDisplayNode().SetVisibility(False)
-        if session:
-            slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
-            if (s:=self.getSegmentationNodeFromSession(session)) != None:
-                s.GetDisplayNode().SetVisibility(True)
-        else:
-            slicer.util.setSliceViewerLayers(None)
-
-    def validateIPAddress(self, *_):
-        if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
-            self.toImageSelectorButton.setEnabled(False)
-        else:
-            self.toImageSelectorButton.setEnabled(True)
-
-    def saveIPAddresses(self):
-        """Save IP addresses to settings and move to the next screen."""
-        settings = qt.QSettings()
-        settings.setValue("SegmentationsHelper/openigt_address", self.openigt_address_input.text)
-        settings.setValue("SegmentationsHelper/image_server_address", self.image_server_address_input.text)
-
-    def setIPAddresses(self):
-        openigt_address = self.openigt_address_input.text
-        image_server_address = self.image_server_address_input.text
-        self.monailabel.logic.setServer("http://"+str(image_server_address)+":8000")
-        self.monailabel.logic.setClientId(slicer.util.settingsValue("MONAILabel/clientId", "user-xyz"))
-        self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
-
-    def exportSegmentationsToModels(self):
-        segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
-        shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-        exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
-        for segmentation_node in segmentation_nodes:
-            slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
-    
     def getActiveSession(self):
         if self.hasActiveSession():
             return self._parameterNode.sessions[self._parameterNode.activeSession]
@@ -640,7 +629,18 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def updateSessionName(self,*_):
         if self.hasActiveSession():
             self._parameterNode.sessions[self._parameterNode.activeSession].name = str(self.sessionNameInput.text)
-        
+    
+
+    def showSession(self, session):
+        for node in slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode"):
+            node.GetDisplayNode().SetVisibility(False)
+        if session:
+            slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
+            if (s:=self.getSegmentationNodeFromSession(session)) != None:
+                s.GetDisplayNode().SetVisibility(True)
+        else:
+            slicer.util.setSliceViewerLayers(None)
+
     def syncSessionUI(self):
         self.loadSessionButton.setEnabled(self.sessionListSelector.currentRow != -1)
         if self.sessionListSelector.currentRow == -1:
@@ -680,7 +680,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if not self._parameterNode:
             self.initializeParameterNode()
         return self._parameterNode.activeSession != None and self._parameterNode.activeSession < len(self._parameterNode.sessions)
-            
+    
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
         # Parameter node stores all user choices in parameter values, node selections, etc.
