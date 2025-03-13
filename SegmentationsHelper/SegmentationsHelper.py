@@ -23,6 +23,7 @@ class SegmentationSession:
     name: str
     segmentationNode: Optional[str] = None
     volumeNode: Optional[str] = None
+    geometryNode: Optional[str] = None
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
@@ -366,12 +367,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.monailabel.logic.setClientId(slicer.util.settingsValue("MONAILabel/clientId", "user-xyz"))
         self.visionProConnectionWidget.self().ip_address_input.setText(openigt_address)
 
-    def exportSegmentationsToModels(self):
-        segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+    def exportSegmentationToModels(self, session):
         shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-        exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), "Segments")    
-        for segmentation_node in segmentation_nodes:
-            slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation_node, exportFolderItemId)
+        exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), self.getVolumeNodeFromSession(session).GetName() + "_models")
+        session.geometryNode = exportFolderItemId
+        slicer.modules.segmentations.logic().ExportAllSegmentsToModels(self.getSegmentationNodeFromSession(session), exportFolderItemId)
 
     def onPerformSegmentation(self):
 
@@ -600,6 +600,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
            return self.getVolumeNodeFromSession(self._parameterNode.sessions[self._parameterNode.activeSession])
         return None
     
+    def setActiveSessionVolumeNode(self, volumeNode):
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = volumeNode.GetID()
+    
     def getSegmentationNodeFromSession(self, session):
         if session and session.segmentationNode:
             return slicer.mrmlScene.GetNodeByID(session.segmentationNode)
@@ -609,15 +613,24 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             return self.getSegmentationNodeFromSession(self._parameterNode.sessions[self._parameterNode.activeSession])
         return None
-    
-    def setActiveSessionVolumeNode(self, volumeNode):
-        if self.hasActiveSession():
-            print(volumeNode.GetID())
-            self._parameterNode.sessions[self._parameterNode.activeSession].volumeNode = volumeNode.GetID()
-    
+
     def setActiveSessionSegmentationNode(self, segmentationNode):
         if self.hasActiveSession():
             self._parameterNode.sessions[self._parameterNode.activeSession].segmentationNode = segmentationNode.GetID()
+
+    def getGeometryNodeFromSession(self, session):
+        if session and session.geometryNode:
+            return slicer.mrmlScene.GetNodeByID(session.geometryNode)
+        return None
+    
+    def getActiveSessionGeometryNode(self):
+        if self.hasActiveSession():
+            return self.getGeometryNodeFromSession(self._parameterNode.sessions[self._parameterNode.activeSession])
+        return None
+
+    def setActiveSessionGeometryNode(self, geometryNode):
+        if self.hasActiveSession():
+            self._parameterNode.sessions[self._parameterNode.activeSession].geometryNode = geometryNode.GetID()
 
     def loadSession(self):
         if self.sessionListSelector.currentRow == -1:
@@ -632,12 +645,15 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     
 
     def showSession(self, session):
-        for node in slicer.mrmlScene.GetNodesByClass("vtkMRMLSegmentationNode"):
-            node.GetDisplayNode().SetVisibility(False)
+        for session in self._parameterNode.sessions:
+            self.getVolumeNodeFromSession(session).GetDisplayNode().SetVisibility(False)
+            self.getGeometryNodeFromSession(session).GetDisplayNode().SetVisibility(False)
         if session:
             slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
             if (s:=self.getSegmentationNodeFromSession(session)) != None:
                 s.GetDisplayNode().SetVisibility(True)
+            if (g:=self.getGeometryNodeFromSession(session)) != None:
+                g.GetDisplayNode().SetVisibility(True)
         else:
             slicer.util.setSliceViewerLayers(None)
 
