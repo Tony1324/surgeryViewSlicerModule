@@ -246,7 +246,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentationEditorLayout = qt.QVBoxLayout(self.segmentationEditor)
         self.segmentationEditor.hide()
 
-        segmentationEditorLayout.addWidget(slicer.modules.segmenteditor.widgetRepresentation())
+        self.segmentationEditorUI = slicer.qMRMLSegmentEditorWidget()
+        self.segmentationEditorUI.setMRMLScene(slicer.mrmlScene)
+        segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
+        slicer.mrmlScene.AddNode(segmentEditorNode)
+        self.segmentationEditorUI.setMRMLSegmentEditorNode(segmentEditorNode)
+        segmentationEditorLayout.addWidget(self.segmentationEditorUI)
 
         segmentationEditorLayout.addStretch(1)
         # add next button
@@ -374,7 +379,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(self.getSegmentationNodeFromSession(session), exportFolderItemId)
 
     def onPerformSegmentation(self):
-
         self.setIPAddresses()
         if self.hasActiveSession():
             volume = self.getActiveSessionVolumeNode()
@@ -582,7 +586,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.showVisionProInterface()
         self.onSaveLabel()
         self.onTraining()
-        self.exportSegmentationsToModels()
+        self.exportSegmentationToModels(self.getActiveSession())
         self.setIPAddresses()
    
     def getActiveSession(self):
@@ -726,6 +730,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             if volume:
                 self.addDataButton.setText(volume.GetName())
                 self.addDataButton.setEnabled(False)
+                self.segmentationEditorUI.setSourceVolumeNode(volume)
+                self.segmentationEditorUI.setSegmentationNode(self.getActiveSessionSegmentationNode())
             else:
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
