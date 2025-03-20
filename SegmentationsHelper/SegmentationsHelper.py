@@ -189,6 +189,34 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         layout.addWidget(self.sessionsList)
         
+        #
+        # SESSION UI
+        #
+
+        self.sessionContainer = qt.QWidget()
+        sessionContainerLayout = qt.QVBoxLayout(self.sessionContainer)
+        sessionContainerLayout.setContentsMargins(0, 0, 0, 0)
+        self.sessionContainer.hide()
+
+        sessionTitleContainer = qt.QPushButton()
+        sessionTitleContainerLayout = qt.QHBoxLayout(sessionTitleContainer)
+        sessionTitleContainer.setStyleSheet("background-color: white; border-radius: 5px")
+        sessionTitleContainer.clicked.connect(self.resetToSessionsList)
+
+        sessionContainerLayout.addWidget(sessionTitleContainer)
+
+        returnButton = qt.QLabel("<")
+        returnButton.setStyleSheet("font-size: 15px; font-weight: bold")
+        sessionTitleContainerLayout.addWidget(returnButton)
+
+        self.sessionTitle = qt.QLabel("Session")
+        self.sessionTitle.setStyleSheet("font-size: 15px")
+        sessionTitleContainerLayout.addWidget(self.sessionTitle)
+
+        sessionTitleContainerLayout.addStretch(1)
+
+        layout.addWidget(self.sessionContainer)
+
 
         #VOLUME SELECTOR
 
@@ -199,12 +227,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imageSelectText = qt.QLabel("Select an Image Volume:")
         imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
         imageSelectorLayout.addWidget(imageSelectText)
-
-        returnButton = qt.QPushButton("Back to Sessions List")
-        returnButton.setStyleSheet("font-size: 15px")
-        returnButton.setFixedWidth(200)
-        returnButton.clicked.connect(self.resetToSessionsList)
-        imageSelectorLayout.addWidget(returnButton)
 
         imageSelectorLayout.addStretch(1)
 
@@ -236,7 +258,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         nextButton.clicked.connect(self.onPerformSegmentation)
         imageSelectorLayout.addWidget(nextButton)
 
-        layout.addWidget(self.imageSelector)
+        sessionContainerLayout.addWidget(self.imageSelector)
 
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
 
@@ -260,7 +282,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
 
-        layout.addWidget(self.segmentationEditor)
+        sessionContainerLayout.addWidget(self.segmentationEditor)
         
         #VISION PRO CONNECTION
 
@@ -279,7 +301,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         backButton.clicked.connect(self.resetToSessionsList)
         visionProInterfaceLayout.addWidget(backButton)
 
-        layout.addWidget(self.visionProInterface)
+        sessionContainerLayout.addWidget(self.visionProInterface)
 
         self.initializeParameterNode()
         # Connections
@@ -314,13 +336,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.sessionsList.hide()
+        self.sessionContainer.hide()
         self.configurationScreen.show()
+
     
     def showSessionsList(self):
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
+        self.sessionContainer.hide()
         self.sessionsList.show()
 
     def showImageSelector(self):
@@ -328,6 +353,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.visionProInterface.hide()
         self.configurationScreen.hide()
+        self.sessionContainer.show()
         self.imageSelector.show()
     
     def showSegmentationEditor(self):
@@ -336,6 +362,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProInterface.hide()
         self.configurationScreen.hide()
         self.segmentationEditor.show()
+        self.sessionContainer.show()
     
     def showVisionProInterface(self):
         self.sessionsList.hide()
@@ -343,10 +370,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
         self.visionProInterface.show()
+        self.sessionContainer.show()
     
     def resetToSessionsList(self):
-        # self.volumeIsOnServer = False
-        # self.monailabel.onResetScribbles()
         if self.hasActiveSession():
             self.showSession(None)
         self._parameterNode.activeSession = None
@@ -724,6 +750,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
             self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+            self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
             self.showSession(self._parameterNode.sessions[self._parameterNode.activeSession])
 
             volume = self.getActiveSessionVolumeNode()
