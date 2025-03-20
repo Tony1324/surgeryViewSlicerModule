@@ -200,20 +200,41 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         sessionTitleContainer = qt.QPushButton()
         sessionTitleContainerLayout = qt.QHBoxLayout(sessionTitleContainer)
-        sessionTitleContainer.setStyleSheet("background-color: white; border-radius: 5px")
+        sessionTitleContainer.setStyleSheet("background-color: transparent; border-radius: 5px")
         sessionTitleContainer.clicked.connect(self.resetToSessionsList)
 
         sessionContainerLayout.addWidget(sessionTitleContainer)
 
         returnButton = qt.QLabel("<")
-        returnButton.setStyleSheet("font-size: 15px; font-weight: bold")
+        returnButton.setStyleSheet("font-size: 25px; font-weight: bold")
         sessionTitleContainerLayout.addWidget(returnButton)
 
         self.sessionTitle = qt.QLabel("Session")
-        self.sessionTitle.setStyleSheet("font-size: 15px")
+        self.sessionTitle.setStyleSheet("font-size: 25px; font-weight: bold")
         sessionTitleContainerLayout.addWidget(self.sessionTitle)
 
         sessionTitleContainerLayout.addStretch(1)
+
+        sessionTabContainer = qt.QWidget()
+        sessionTabContainerLayout = qt.QHBoxLayout(sessionTabContainer)
+        sessionTabContainerLayout.setContentsMargins(0, 0, 0, 0)
+        sessionTabContainer.setStyleSheet("background-color:lightgray; border-radius: 5px")
+        sessionContainerLayout.addWidget(sessionTabContainer)
+
+        sessionTabImageButton = qt.QPushButton("Setup and Info")
+        sessionTabImageButton.setStyleSheet("font-weight: bold; background-color: white")
+        sessionTabImageButton.clicked.connect(self.showImageSelector)
+        sessionTabContainerLayout.addWidget(sessionTabImageButton)    
+
+        sessionTabSegmentationButton = qt.QPushButton("Segmentation")
+        sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
+        sessionTabSegmentationButton.clicked.connect(self.showSegmentationEditor)
+        sessionTabContainerLayout.addWidget(sessionTabSegmentationButton)    
+
+        sessionTabSessionButton = qt.QPushButton("Patient")
+        sessionTabSessionButton.setStyleSheet("background-color: transparent")
+        sessionTabSessionButton.clicked.connect(self.showVisionProInterface)
+        sessionTabContainerLayout.addWidget(sessionTabSessionButton)    
 
         layout.addWidget(self.sessionContainer)
 
@@ -223,10 +244,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.imageSelector = qt.QWidget()
         imageSelectorLayout = qt.QVBoxLayout(self.imageSelector)
         self.imageSelector.hide()
-
-        imageSelectText = qt.QLabel("Select an Image Volume:")
-        imageSelectText.setStyleSheet("font-weight: bold; font-size: 20px")
-        imageSelectorLayout.addWidget(imageSelectText)
 
         imageSelectorLayout.addStretch(1)
 
@@ -252,12 +269,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # imageSelectorLayout.addWidget(loadDataButton)
 
         imageSelectorLayout.addStretch(1)
-
-        nextButton = qt.QPushButton("Perform Segmentation")
-        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        nextButton.clicked.connect(self.onPerformSegmentation)
-        imageSelectorLayout.addWidget(nextButton)
-
         sessionContainerLayout.addWidget(self.imageSelector)
 
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAdded)
@@ -268,6 +279,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentationEditorLayout = qt.QVBoxLayout(self.segmentationEditor)
         self.segmentationEditor.hide()
 
+        nextButton = qt.QPushButton("Perform Segmentation")
+        nextButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: rgb(50,200,100)")
+        nextButton.clicked.connect(self.onPerformSegmentation)
+        segmentationEditorLayout.addWidget(nextButton)
+
         self.segmentationEditorUI = slicer.qMRMLSegmentEditorWidget()
         self.segmentationEditorUI.setMRMLScene(slicer.mrmlScene)
         segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
@@ -277,7 +293,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         segmentationEditorLayout.addStretch(1)
         # add next button
-        nextButton = qt.QPushButton("Finish and Send to Apple Vision Pro")
+        nextButton = qt.QPushButton("Submit Edits")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
@@ -295,11 +311,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
 
         visionProInterfaceLayout.addStretch(1)
-
-        backButton = qt.QPushButton("Reset and Go Back to Image Selector")
-        backButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        backButton.clicked.connect(self.resetToSessionsList)
-        visionProInterfaceLayout.addWidget(backButton)
 
         sessionContainerLayout.addWidget(self.visionProInterface)
 
@@ -410,9 +421,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             volume = self.getActiveSessionVolumeNode()
             if volume:
                 self.uploadVolume(volume)
-            slicer.app.processEvents()
-            self.performSegmentation()
-            self.showSegmentationEditor()
+                slicer.app.processEvents()
+                self.performSegmentation()
+                self.showSegmentationEditor()
 
     def uploadVolume(self, volumeNode):
         image_id = volumeNode.GetName()
