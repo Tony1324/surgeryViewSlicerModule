@@ -23,7 +23,7 @@ class SegmentationSession:
     name: str
     segmentationNode: Optional[str] = None
     volumeNode: Optional[str] = None
-    geometryNode: Optional[str] = None
+    geometryNode: Optional[int] = None
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
@@ -87,7 +87,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.layout.addWidget(panelWidget)
         panelWidget.setStyleSheet("""
             QPushButton, QLineEdit { border-radius: 5px;  background-color: white; padding: 8px; opacity: 1} 
-            QPushButton:hover { border: 2px solid black } 
+            QPushButton:hover { border: 2px solid black} 
             QLineEdit { border: 1px solid rgb(180,180,180)}
             QListWidget { font-size: 20px; border: 1px solid rgb(180,180,180); overflow: none; background-color: white; border-radius: 5px; height: 1000px }
             QListWidget::item { padding: 5px }
@@ -198,15 +198,15 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         sessionContainerLayout.setContentsMargins(0, 0, 0, 0)
         self.sessionContainer.hide()
 
-        sessionTitleContainer = qt.QPushButton()
+        sessionTitleContainer = qt.QWidget()
         sessionTitleContainerLayout = qt.QHBoxLayout(sessionTitleContainer)
-        sessionTitleContainer.setStyleSheet("background-color: transparent; border-radius: 5px")
-        sessionTitleContainer.clicked.connect(self.resetToSessionsList)
 
         sessionContainerLayout.addWidget(sessionTitleContainer)
 
-        returnButton = qt.QLabel("<")
-        returnButton.setStyleSheet("font-size: 25px; font-weight: bold")
+        returnButton = qt.QPushButton("❮")
+        returnButton.setStyleSheet("font-size: 25px; font-weight: bold; border: 1px solid gray; background-color: transparent")
+        returnButton.setFixedHeight(40)
+        returnButton.clicked.connect(self.resetToSessionsList)
         sessionTitleContainerLayout.addWidget(returnButton)
 
         self.sessionTitle = qt.QLabel("Session")
@@ -217,24 +217,28 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         sessionTabContainer = qt.QWidget()
         sessionTabContainerLayout = qt.QHBoxLayout(sessionTabContainer)
-        sessionTabContainerLayout.setContentsMargins(0, 0, 0, 0)
         sessionTabContainer.setStyleSheet("background-color:lightgray; border-radius: 5px")
         sessionContainerLayout.addWidget(sessionTabContainer)
 
-        sessionTabImageButton = qt.QPushButton("Setup and Info")
-        sessionTabImageButton.setStyleSheet("font-weight: bold; background-color: white")
-        sessionTabImageButton.clicked.connect(self.showImageSelector)
-        sessionTabContainerLayout.addWidget(sessionTabImageButton)    
+        self.sessionTabImageButton = qt.QPushButton("Setup and Info")
+        self.sessionTabImageButton.setStyleSheet("font-weight: bold; background-color: white")
+        self.sessionTabImageButton.setFixedHeight(35)
+        self.sessionTabImageButton.clicked.connect(self.showImageSelector)
+        sessionTabContainerLayout.addWidget(self.sessionTabImageButton)    
 
-        sessionTabSegmentationButton = qt.QPushButton("Segmentation")
-        sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
-        sessionTabSegmentationButton.clicked.connect(self.showSegmentationEditor)
-        sessionTabContainerLayout.addWidget(sessionTabSegmentationButton)    
+        self.sessionTabSegmentationButton = qt.QPushButton("Segmentation")
+        self.sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
+        self.sessionTabSegmentationButton.setFixedHeight(35)
+        self.sessionTabSegmentationButton.clicked.connect(self.showSegmentationEditor)
+        self.sessionTabSegmentationButton.setEnabled(False)
+        sessionTabContainerLayout.addWidget(self.sessionTabSegmentationButton)    
 
-        sessionTabSessionButton = qt.QPushButton("Patient")
-        sessionTabSessionButton.setStyleSheet("background-color: transparent")
-        sessionTabSessionButton.clicked.connect(self.showVisionProInterface)
-        sessionTabContainerLayout.addWidget(sessionTabSessionButton)    
+        self.sessionTabSessionButton = qt.QPushButton("Patient")
+        self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
+        self.sessionTabSessionButton.setFixedHeight(35)
+        self.sessionTabSessionButton.clicked.connect(self.showVisionProInterface)
+        self.sessionTabSessionButton.setEnabled(False)
+        sessionTabContainerLayout.addWidget(self.sessionTabSessionButton)    
 
         layout.addWidget(self.sessionContainer)
 
@@ -293,7 +297,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         segmentationEditorLayout.addStretch(1)
         # add next button
-        nextButton = qt.QPushButton("Finish and Send to Apple Vision Pro")
+        nextButton = qt.QPushButton("Submit Labels")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
@@ -336,10 +340,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     @vtk.calldata_type(vtk.VTK_OBJECT)
     def onNodeAdded(self, caller, event, callData):
         if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
-
             node = callData
             if isinstance(node, vtkMRMLScalarVolumeNode):
                self.setActiveSessionVolumeNode(node)
+               self.showSegmentationEditor()
 
     #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
@@ -366,6 +370,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.configurationScreen.hide()
         self.sessionContainer.show()
         self.imageSelector.show()
+        self.sessionTabImageButton.setStyleSheet("font-weight: bold; background-color: white")
+        self.sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
+        self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
     
     def showSegmentationEditor(self):
         self.sessionsList.hide()
@@ -374,6 +381,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.configurationScreen.hide()
         self.segmentationEditor.show()
         self.sessionContainer.show()
+        self.sessionTabSegmentationButton.setStyleSheet("font-weight: bold; background-color: white")
+        self.sessionTabImageButton.setStyleSheet("background-color: transparent")
+        self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
     
     def showVisionProInterface(self):
         self.sessionsList.hide()
@@ -382,6 +392,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.configurationScreen.hide()
         self.visionProInterface.show()
         self.sessionContainer.show()
+        self.sessionTabSessionButton.setStyleSheet("font-weight: bold; background-color: white")
+        self.sessionTabImageButton.setStyleSheet("background-color: transparent")
+        self.sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
+    
+        
     
     def resetToSessionsList(self):
         if self.hasActiveSession():
@@ -661,7 +676,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def getGeometryNodeFromSession(self, session):
         if session and session.geometryNode:
-            return slicer.mrmlScene.GetNodeByID(session.geometryNode)
+            folders = vtk.vtkCollection()
+            slicer.GetSubjectHierarchyNode().GetDataNodesInBranch(session.geometryNode, folders)
+            return folders.GetItemAsObject(0)
         return None
     
     def getActiveSessionGeometryNode(self):
@@ -768,13 +785,22 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             if volume:
                 self.addDataButton.setText(volume.GetName())
                 self.addDataButton.setEnabled(False)
-                self.segmentationEditorUI.setSourceVolumeNode(volume)
-                self.segmentationEditorUI.setSegmentationNode(self.getActiveSessionSegmentationNode())
+                self.sessionTabSegmentationButton.setEnabled(True)
             else:
+                self.sessionTabSegmentationButton.setEnabled(False)
+                self.sessionTabSessionButton.setEnabled(False)
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
+
+            segmentation = self.getActiveSessionSegmentationNode()
+            if segmentation:
+                self.sessionTabSessionButton.setEnabled(True)
+                self.segmentationEditorUI.setSegmentationNode(segmentation)
+                self.segmentationEditorUI.setSourceVolumeNode(volume)
         else: 
             self.sessionListSelector.setCurrentRow(-1)
+            self.sessionTabSegmentationButton.setEnabled(False)
+            self.sessionTabSessionButton.setEnabled(False)
             self.showSessionsList()
         self.sessionListSelector.clear()
         for session in self._parameterNode.sessions:
