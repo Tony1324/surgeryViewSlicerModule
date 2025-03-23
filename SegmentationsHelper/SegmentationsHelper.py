@@ -18,6 +18,12 @@ from time import sleep
 import threading
 import tempfile
 
+try:
+    import whisper
+except:
+    slicer.util.pip_install('openai-whisper')
+    import whisper
+
 @parameterPack
 class SegmentationSession:
     name: str
@@ -236,7 +242,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionTabSessionButton = qt.QPushButton("Patient")
         self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
         self.sessionTabSessionButton.setFixedHeight(35)
-        self.sessionTabSessionButton.clicked.connect(self.showVisionProInterface)
+        self.sessionTabSessionButton.clicked.connect(self.showActiveSessionInterface)
         self.sessionTabSessionButton.setEnabled(False)
         sessionTabContainerLayout.addWidget(self.sessionTabSessionButton)    
 
@@ -247,6 +253,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.imageSelector = qt.QWidget()
         imageSelectorLayout = qt.QVBoxLayout(self.imageSelector)
+        imageSelectorLayout.setContentsMargins(0, 0, 0, 0)
         self.imageSelector.hide()
 
         imageSelectorLayout.addStretch(1)
@@ -281,6 +288,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.segmentationEditor = qt.QWidget()
         segmentationEditorLayout = qt.QVBoxLayout(self.segmentationEditor)
+        segmentationEditorLayout.setContentsMargins(0, 0, 0, 0)
         self.segmentationEditor.hide()
 
         nextButton = qt.QPushButton("Perform Segmentation")
@@ -297,26 +305,52 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         segmentationEditorLayout.addStretch(1)
         # add next button
-        nextButton = qt.QPushButton("Submit Labels")
+        nextButton = qt.QPushButton("Submit Edits")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
 
         sessionContainerLayout.addWidget(self.segmentationEditor)
         
-        #VISION PRO CONNECTION
+        #PATIENT SESSION INTERFACE CONNECTION
+        self.activeSessionInterface = qt.QWidget()
+        activeSessionInterfaceLayout = qt.QVBoxLayout(self.activeSessionInterface)
+        activeSessionInterfaceLayout.setContentsMargins(0, 0, 0, 0)
+        self.activeSessionInterface.hide()
+        sessionContainerLayout.addWidget(self.activeSessionInterface)
+
+        visionProToggleButton = qt.QPushButton("▼ Vision Pro Connection")
+        visionProToggleButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: lightgray")
+        visionProToggleButton.clicked.connect(lambda *_: self.visionProInterface.setVisible(not self.visionProInterface.visible))
+        activeSessionInterfaceLayout.addWidget(visionProToggleButton)
 
         self.visionProInterface = qt.QWidget()
         visionProInterfaceLayout = qt.QVBoxLayout(self.visionProInterface)
-        self.visionProInterface.hide()
 
         self.visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
         self.visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
         visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
-
-        visionProInterfaceLayout.addStretch(1)
         
-        sessionContainerLayout.addWidget(self.visionProInterface)
+        activeSessionInterfaceLayout.addWidget(self.visionProInterface)
+
+        recordingSessionToggleButton = qt.QPushButton("▼ Record Tools")
+        recordingSessionToggleButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color: lightgray")
+        recordingSessionToggleButton.clicked.connect(lambda *_: self.recordingSession.setVisible(not self.recordingSession.visible))
+        activeSessionInterfaceLayout.addWidget(recordingSessionToggleButton)
+
+        self.recordingSession = qt.QWidget()
+        recordingSessionLayout = qt.QVBoxLayout(self.recordingSession)
+        recordingSessionLayout.setContentsMargins(0,0,0,0)
+        self.recordingSession.hide()
+
+        self.recordButton = qt.QPushButton("Begin Recording")
+        self.recordButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.recordButton.clicked.connect(self.onClickedRecord)
+        recordingSessionLayout.addWidget(self.recordButton)
+
+        activeSessionInterfaceLayout.addWidget(self.recordingSession)
+        activeSessionInterfaceLayout.addStretch(1)
+
 
         self.initializeParameterNode()
         # Connections
@@ -358,7 +392,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def showSessionsList(self):
         self.imageSelector.hide()
         self.segmentationEditor.hide()
-        self.visionProInterface.hide()
+        self.activeSessionInterface.hide()
         self.configurationScreen.hide()
         self.sessionContainer.hide()
         self.sessionsList.show()
@@ -366,7 +400,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def showImageSelector(self):
         self.sessionsList.hide()
         self.segmentationEditor.hide()
-        self.visionProInterface.hide()
+        self.activeSessionInterface.hide()
         self.configurationScreen.hide()
         self.sessionContainer.show()
         self.imageSelector.show()
@@ -377,7 +411,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def showSegmentationEditor(self):
         self.sessionsList.hide()
         self.imageSelector.hide()
-        self.visionProInterface.hide()
+        self.activeSessionInterface.hide()
         self.configurationScreen.hide()
         self.segmentationEditor.show()
         self.sessionContainer.show()
@@ -385,12 +419,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionTabImageButton.setStyleSheet("background-color: transparent")
         self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
     
-    def showVisionProInterface(self):
+    def showActiveSessionInterface(self):
         self.sessionsList.hide()
         self.imageSelector.hide()
         self.segmentationEditor.hide()
         self.configurationScreen.hide()
-        self.visionProInterface.show()
+        self.activeSessionInterface.show()
         self.sessionContainer.show()
         self.sessionTabSessionButton.setStyleSheet("font-weight: bold; background-color: white")
         self.sessionTabImageButton.setStyleSheet("background-color: transparent")
@@ -635,11 +669,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             qt.QApplication.restoreOverrideCursor()
 
     def onFinishSegmentation(self):
-        self.showVisionProInterface()
+        self.showActiveSessionInterface()
         self.onSaveLabel()
         self.onTraining()
         self.exportSegmentationToModels(self.getActiveSession())
         self.setIPAddresses()
+
+    def onClickedRecord(self):
+        if self.recordButton.text == "Begin Recording":
+            self.recordButton.setText("Recording")
+        else:
+            self.recordButton.setText("Begin Recording")
    
     def getActiveSession(self):
         if self.hasActiveSession():
@@ -705,16 +745,22 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def showSession(self, session):
         slicer.util.resetSliceViews()
         for _session in self._parameterNode.sessions:
-            if (s:=self.getSegmentationNodeFromSession(_session)) != None:
-                s.GetDisplayNode().SetVisibility(False)
-            if (g:=self.getGeometryNodeFromSession(_session)) != None:
-                g.GetDisplayNode().VisibilityOff()
+            try: 
+                if (s:=self.getSegmentationNodeFromSession(_session)) != None:
+                    s.GetDisplayNode().SetVisibility(False)
+                if (g:=self.getGeometryNodeFromSession(_session)) != None:
+                    g.GetDisplayNode().VisibilityOff()
+            except:
+                pass
         if session:
-            slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
-            if (s:=self.getSegmentationNodeFromSession(session)) != None:
-                s.GetDisplayNode().SetVisibility(True)
-            if (g:=self.getGeometryNodeFromSession(session)) != None:
-                g.GetDisplayNode().VisibilityOn()
+            try:
+                slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
+                if (s:=self.getSegmentationNodeFromSession(session)) != None:
+                    s.GetDisplayNode().SetVisibility(True)
+                if (g:=self.getGeometryNodeFromSession(session)) != None:
+                    g.GetDisplayNode().VisibilityOn()
+            except:
+                pass
         else:
             slicer.util.setSliceViewerLayers(None)
 
