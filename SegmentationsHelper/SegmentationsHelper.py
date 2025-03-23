@@ -7,6 +7,7 @@ import SimpleITK as sitk
 import sitkUtils
 
 import slicer
+import numpy as np
 from slicer.parameterNodeWrapper import *
 from slicer.i18n import tr as _
 from slicer.i18n import translate
@@ -23,6 +24,12 @@ try:
 except:
     slicer.util.pip_install('openai-whisper')
     import whisper
+
+try:
+    import sounddevice
+except:
+    slicer.util.pip_install('sounddevice')
+    import sounddevice
 
 @parameterPack
 class SegmentationSession:
@@ -680,6 +687,22 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.recordButton.setText("Recording")
         else:
             self.recordButton.setText("Begin Recording")
+    
+    def callback(self, indata, frames, time, status):
+        self.recording.append(indata.copy())
+
+    def start_recording(self):
+        self.recording = []  # Clear previous recording
+        print("Recording started...")
+        sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1).start()
+
+    def stop_recording(self, filename="output.wav"):
+        """Stops recording and saves to a WAV file."""
+        sounddevice.stop()
+
+        audio_data = np.concatenate(self.recording, axis=0)
+        print(audio_data.shape)
+
    
     def getActiveSession(self):
         if self.hasActiveSession():
