@@ -635,10 +635,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             # export labelmap
             labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
             slicer.modules.segmentations.logic().ExportSegmentsToLabelmapNode(
-                segmentationNode, save_segment_ids, labelmapVolumeNode, self._volumeNode
+                segmentationNode, save_segment_ids, labelmapVolumeNode, self.getActiveSessionVolumeNode()
             )
 
-            label_in = tempfile.NamedTemporaryFile(suffix=self.file_ext, dir=self.tmpdir).name
+            label_in = tempfile.NamedTemporaryFile(suffix=".nii.gz", dir=self.monailabel.tmpdir).name
 
             if (
                 slicer.util.settingsValue("MONAILabel/allowOverlappingSegments", True, converter=slicer.util.toBool)
@@ -648,9 +648,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             else:
                 slicer.util.saveNode(labelmapVolumeNode, label_in)
 
-            result = self.monailabel.logic.save_label(self.current_sample["id"], label_in, {"label_info": label_info})
+            result = self.monailabel.logic.save_label(self.getActiveSessionVolumeNode().GetName(), label_in, {"label_info": label_info})
 
         except BaseException as e:
+            print(e)
             msg = f"Message: {e.msg}" if hasattr(e, "msg") else ""
             slicer.util.errorDisplay(
                 _("Failed to save Label to MONAI Label Server.\n{message}").format(message=msg)
@@ -702,14 +703,18 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def startRecording(self):
         self.recording = []  # Clear previous recording
         print("Recording started...")
+        sounddevice.default.hostapi = 0
         sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1).start()
 
     def stopRecording(self, filename="output.wav"):
         """Stops recording and saves to a WAV file."""
         sounddevice.stop()
 
+        if len(self.recording) == 0:
+            print("No audio recorded.")
+            return
         audio_data = np.concatenate(self.recording, axis=0)
-        print(audio_data)
+        print(max(audio_data))
 
    
     def getActiveSession(self):
@@ -748,7 +753,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def getGeometryNodeFromSession(self, session):
         if session and session.geometryNode:
             folders = vtk.vtkCollection()
-            slicer.GetSubjectHierarchyNode().GetDataNodesInBranch(session.geometryNode, folders)
+            slicer.mrmlScene.GetSubjectHierarchyNode().GetDataNodesInBranch(session.geometryNode, folders)
+            print(folders.GetNumberOfItems())
             return folders.GetItemAsObject(0)
         return None
     
@@ -778,8 +784,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             try: 
                 if (s:=self.getSegmentationNodeFromSession(_session)) != None:
                     s.GetDisplayNode().SetVisibility(False)
-                if (g:=self.getGeometryNodeFromSession(_session)) != None:
-                    g.GetDisplayNode().VisibilityOff()
+                if _session.geometryNode != None:
+                    sh = slicer.mrmlScene.GetSubjectHierarchyNode()
+                    sh.SetItemDisplayVisibility(_session.geometryNode, False)
             except:
                 pass
         if session:
@@ -787,8 +794,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 slicer.util.setSliceViewerLayers(self.getVolumeNodeFromSession(session))
                 if (s:=self.getSegmentationNodeFromSession(session)) != None:
                     s.GetDisplayNode().SetVisibility(True)
-                if (g:=self.getGeometryNodeFromSession(session)) != None:
-                    g.GetDisplayNode().VisibilityOn()
+                if session.geometryNode != None:
+                    print(session.geometryNode)
+                    sh = slicer.mrmlScene.GetSubjectHierarchyNode()
+                    sh.SetItemDisplayVisibility(session.geometryNode, True)
             except:
                 pass
         else:
