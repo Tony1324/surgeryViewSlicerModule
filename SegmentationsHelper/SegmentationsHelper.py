@@ -305,6 +305,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.segmentationEditorUI = slicer.qMRMLSegmentEditorWidget()
         self.segmentationEditorUI.setMRMLScene(slicer.mrmlScene)
+        children = self.segmentationEditorUI.children()
+        children[1].setVisible(False)
+        children[2].setVisible(False)
+        children[4].setVisible(False)
+        children[5].setVisible(False)
+        children[6].setVisible(False)
         segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
         slicer.mrmlScene.AddNode(segmentEditorNode)
         self.segmentationEditorUI.setMRMLSegmentEditorNode(segmentEditorNode)
@@ -380,11 +386,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     @vtk.calldata_type(vtk.VTK_OBJECT)
     def onNodeAdded(self, caller, event, callData):
-        if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
-            node = callData
-            if isinstance(node, vtkMRMLScalarVolumeNode):
-               self.setActiveSessionVolumeNode(node)
-               self.showSegmentationEditor()
+        node = callData
+        if isinstance(node, vtkMRMLScalarVolumeNode):
+            if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
+                self.setActiveSessionVolumeNode(node)
+                self.showSegmentationEditor()
 
     #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
@@ -685,23 +691,25 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onClickedRecord(self):
         if self.recordButton.text == "Begin Recording":
             self.recordButton.setText("Recording")
+            self.startRecording()
         else:
             self.recordButton.setText("Begin Recording")
+            self.stopRecording()
     
     def callback(self, indata, frames, time, status):
         self.recording.append(indata.copy())
 
-    def start_recording(self):
+    def startRecording(self):
         self.recording = []  # Clear previous recording
         print("Recording started...")
         sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1).start()
 
-    def stop_recording(self, filename="output.wav"):
+    def stopRecording(self, filename="output.wav"):
         """Stops recording and saves to a WAV file."""
         sounddevice.stop()
 
         audio_data = np.concatenate(self.recording, axis=0)
-        print(audio_data.shape)
+        print(audio_data)
 
    
     def getActiveSession(self):
@@ -766,7 +774,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     
 
     def showSession(self, session):
-        slicer.util.resetSliceViews()
         for _session in self._parameterNode.sessions:
             try: 
                 if (s:=self.getSegmentationNodeFromSession(_session)) != None:
@@ -786,6 +793,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 pass
         else:
             slicer.util.setSliceViewerLayers(None)
+        slicer.util.resetSliceViews()
 
     def syncSessionUI(self):
         self.loadSessionButton.setEnabled(self.sessionListSelector.currentRow != -1)
@@ -866,6 +874,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSessionButton.setEnabled(True)
                 self.segmentationEditorUI.setSegmentationNode(segmentation)
                 self.segmentationEditorUI.setSourceVolumeNode(volume)
+            else:
+                self.segmentationEditorUI.setSegmentationNode(None)
+                self.segmentationEditorUI.setSourceVolumeNode(None)
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
