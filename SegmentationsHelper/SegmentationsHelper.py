@@ -18,6 +18,10 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
 import tempfile
+import wave
+
+os.environ["PATH"] += os.pathsep + "/opt/homebrew/Cellar"
+os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
 
 try:
     import whisper
@@ -79,6 +83,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self._parameterNode = None
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
+        self.tmpdir = slicer.util.tempDirectory("segmentationshelper")
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -703,18 +708,38 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def startRecording(self):
         self.recording = []  # Clear previous recording
         print("Recording started...")
-        sounddevice.default.hostapi = 0
-        sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1).start()
+        self.recordingStream = sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1)
+        self.recordingStream.start()
 
     def stopRecording(self, filename="output.wav"):
         """Stops recording and saves to a WAV file."""
-        sounddevice.stop()
+        self.recordingStream.stop()
+        self.recordingStream.close()
 
         if len(self.recording) == 0:
             print("No audio recorded.")
             return
         audio_data = np.concatenate(self.recording, axis=0)
         print(max(audio_data))
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            with wave.open(temp_audio, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(4)
+                wf.setframerate(16000)
+                wf.writeframes(audio_data.astype(np.float32).tobytes())
+
+            temp_audio_path = temp_audio.name  # Get the temp file path
+
+        print(f"Audio saved to temporary file: {temp_audio_path}")
+
+        model = whisper.load_model("base") 
+        result = model.transcribe(temp_audio_path)
+        
+        print("Transcription:", result["text"])
+        # return result["text"] 
+
+        
 
    
     def getActiveSession(self):
