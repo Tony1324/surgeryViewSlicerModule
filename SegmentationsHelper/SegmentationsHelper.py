@@ -19,6 +19,7 @@ from time import sleep
 import threading
 import tempfile
 import wave
+import queue
 
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/Cellar"
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
@@ -697,50 +698,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onClickedRecord(self):
         if self.recordButton.text == "Begin Recording":
             self.recordButton.setText("Recording")
-            self.startRecording()
+            self.logic.startRecording()
         else:
             self.recordButton.setText("Begin Recording")
-            self.stopRecording()
-    
-    def callback(self, indata, frames, time, status):
-        self.recording.append(indata.copy())
-
-    def startRecording(self):
-        self.recording = []  # Clear previous recording
-        print("Recording started...")
-        self.recordingStream = sounddevice.InputStream(callback=self.callback, samplerate=16000, channels=1)
-        self.recordingStream.start()
-
-    def stopRecording(self, filename="output.wav"):
-        """Stops recording and saves to a WAV file."""
-        self.recordingStream.stop()
-        self.recordingStream.close()
-
-        if len(self.recording) == 0:
-            print("No audio recorded.")
-            return
-        audio_data = np.concatenate(self.recording, axis=0)
-        print(max(audio_data))
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-            with wave.open(temp_audio, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(4)
-                wf.setframerate(16000)
-                wf.writeframes(audio_data.astype(np.float32).tobytes())
-
-            temp_audio_path = temp_audio.name  # Get the temp file path
-
-        print(f"Audio saved to temporary file: {temp_audio_path}")
-
-        model = whisper.load_model("base") 
-        result = model.transcribe(temp_audio_path)
-        
-        print("Transcription:", result["text"])
-        # return result["text"] 
-
-        
-
+            self.logic.stopRecording()
    
     def getActiveSession(self):
         if self.hasActiveSession():
@@ -940,6 +901,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
         self.setParameterNode(None)
+        self.logic.recordingStream.stop()
+        self.logic.recordingStream.close()
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
@@ -969,6 +932,53 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
+
+        
+    def callback(self, indata, frames, time, status):
+        print("callback")
+        if status:
+            print(status)
+        self.recording.put(indata.copy())
+
+    def startRecording(self):
+        self.recording = queue.Queue()  # Clear previous recording
+        self.recordingStream = sounddevice.InputStream(callback=self.callback, samplerate=14400, channels=1)
+        self.recordingStream.start()
+        
+    def stopRecording(self, filename="output.wav"):
+        """Stops recording and saves to a WAV file."""
+        self.recordingStream.stop()
+        self.recordingStream.close()
+
+        # if len(self.recording) == 0:
+        #     print("No audio recorded.")
+        #     return
+        
+        _audio_data = []
+        while not self.recording.empty():
+            data = self.recording.get()
+            _audio_data.append(data)
+        
+        audio_data = np.concatenate(_audio_data, axis=0)
+        print(audio_data.shape)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            with wave.open(temp_audio, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(4)
+                wf.setframerate(14400)
+                wf.writeframesraw(audio_data.tobytes())
+
+            temp_audio_path = temp_audio.name  # Get the temp file path
+
+        print(f"Audio saved to temporary file: {temp_audio_path}")
+
+        model = whisper.load_model("base") 
+        result = model.transcribe(temp_audio_path)
+        
+        print("Transcription:", result["text"])
+        # return result["text"] 
+
 
     def close(self) -> None:
         pass
