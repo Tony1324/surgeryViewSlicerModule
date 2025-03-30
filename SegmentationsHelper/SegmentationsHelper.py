@@ -247,7 +247,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
         self.sessionTabSessionButton.setFixedHeight(35)
         self.sessionTabSessionButton.clicked.connect(self.showActiveSessionInterface)
-        self.sessionTabSessionButton.setEnabled(False)
+        # self.sessionTabSessionButton.setEnabled(False)
         sessionTabContainerLayout.addWidget(self.sessionTabSessionButton)    
 
         layout.addWidget(self.sessionContainer)
@@ -359,7 +359,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         recordingSessionLayout.addWidget(self.recordButton)
 
         self.recordTranscriptText = qt.QPlainTextEdit()
+        self.recordTranscriptText.setStyleSheet("border: 1px solid rgb(180,180,180); border-radius: 5px; background-color: white")
         recordingSessionLayout.addWidget(self.recordTranscriptText)
+
+        self.summarizeTranscriptButton = qt.QPushButton("Summarize Transcript")
+        self.summarizeTranscriptButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.summarizeTranscriptButton.clicked.connect(self.onSummarizeTranscript)
+        recordingSessionLayout.addWidget(self.summarizeTranscriptButton)
+
+        self.summarizedTranscriptText = qt.QPlainTextEdit()
+        self.summarizedTranscriptText.setStyleSheet("border: 1px solid rgb(180,180,180); border-radius: 5px; background-color: white")
+        recordingSessionLayout.addWidget(self.summarizedTranscriptText)
 
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
         activeSessionInterfaceLayout.addStretch(1)
@@ -695,10 +705,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.recorder.startRecording()
         else:
             self.recordButton.setText("Begin Recording")
-            text = self.recorder.stopRecording()
-            if text:
-                self.recordTranscriptText.setPlainText(text)
-                self._parameterNode.sessions[self._parameterNode.activeSession].transcription = text
+            # prompt if user wants to stop
+            if slicer.util.confirmOkCancelDisplay(_("Stop Recording?")):
+                text = self.recorder.stopRecording()
+                if text:
+                    self.recordTranscriptText.setPlainText(text)
+                    self._parameterNode.sessions[self._parameterNode.activeSession].transcription = text
+    
+    def onSummarizeTranscript(self):
+        if self.recordTranscriptText.toPlainText() == "":
+            return
+        self.summarizedTranscriptText.setPlainText(self.logic.summarizeText(self.recordTranscriptText.toPlainText()))
    
     def getActiveSession(self):
         if self.hasActiveSession():
@@ -857,7 +874,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSegmentationButton.setEnabled(True)
             else:
                 self.sessionTabSegmentationButton.setEnabled(False)
-                self.sessionTabSessionButton.setEnabled(False)
+                # self.sessionTabSessionButton.setEnabled(False)
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
 
@@ -875,7 +892,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
-            self.sessionTabSessionButton.setEnabled(False)
+            # self.sessionTabSessionButton.setEnabled(False)
             self.showSessionsList()
         self.sessionListSelector.clear()
         for session in self._parameterNode.sessions:
@@ -928,6 +945,9 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
 
     def getParameterNode(self):
         return SegmentationsHelperParameterNode(super().getParameterNode())
+    
+    def summarizeText(self, text):
+        # todo
 
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
