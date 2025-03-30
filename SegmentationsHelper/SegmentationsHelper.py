@@ -18,8 +18,6 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
 import tempfile
-import wave
-import queue
 
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/Cellar"
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
@@ -30,25 +28,18 @@ except:
     slicer.util.pip_install('openai-whisper')
     import whisper
 
-try:
-    import sounddevice
-except:
-    slicer.util.pip_install('sounddevice')
-    import sounddevice
-
 @parameterPack
 class SegmentationSession:
     name: str
     segmentationNode: Optional[str] = None
     volumeNode: Optional[str] = None
     geometryNode: Optional[int] = None
+    transcription: Optional[str] = None
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
     activeSession: Optional[int] = None
     sessions: list[SegmentationSession] = []
-
-
 
 class SegmentationsHelper(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
@@ -84,7 +75,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self._parameterNode = None
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
-        self.tmpdir = slicer.util.tempDirectory("segmentationshelper")
+        self.recorder = AudioRecorder()
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -366,6 +357,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.recordButton.setStyleSheet("font-weight: bold; font-size: 20px")
         self.recordButton.clicked.connect(self.onClickedRecord)
         recordingSessionLayout.addWidget(self.recordButton)
+
+        self.recordTranscriptText = qt.QPlainTextEdit()
+        recordingSessionLayout.addWidget(self.recordTranscriptText)
 
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
         activeSessionInterfaceLayout.addStretch(1)
@@ -698,10 +692,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onClickedRecord(self):
         if self.recordButton.text == "Begin Recording":
             self.recordButton.setText("Recording")
-            self.logic.startRecording()
+            self.recorder.startRecording()
         else:
             self.recordButton.setText("Begin Recording")
-            self.logic.stopRecording()
+            text = self.recorder.stopRecording()
+            if text:
+                self.recordTranscriptText.setPlainText(text)
+                self._parameterNode.sessions[self._parameterNode.activeSession].transcription = text
    
     def getActiveSession(self):
         if self.hasActiveSession():
@@ -872,6 +869,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             else:
                 self.segmentationEditorUI.setSegmentationNode(None)
                 self.segmentationEditorUI.setSourceVolumeNode(None)
+            
+            if self.getActiveSession().transcription:
+                self.recordTranscriptText.setPlainText(self.getActiveSession().transcription)
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
@@ -933,52 +933,41 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
 
-        
-    def callback(self, indata, frames, time, status):
-        print("callback")
-        if status:
-            print(status)
-        self.recording.put(indata.copy())
-
-    def startRecording(self):
-        self.recording = queue.Queue()  # Clear previous recording
-        self.recordingStream = sounddevice.InputStream(callback=self.callback, samplerate=14400, channels=1)
-        self.recordingStream.start()
-        
-    def stopRecording(self, filename="output.wav"):
-        """Stops recording and saves to a WAV file."""
-        self.recordingStream.stop()
-        self.recordingStream.close()
-
-        # if len(self.recording) == 0:
-        #     print("No audio recorded.")
-        #     return
-        
-        _audio_data = []
-        while not self.recording.empty():
-            data = self.recording.get()
-            _audio_data.append(data)
-        
-        audio_data = np.concatenate(_audio_data, axis=0)
-        print(audio_data.shape)
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-            with wave.open(temp_audio, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(4)
-                wf.setframerate(14400)
-                wf.writeframesraw(audio_data.tobytes())
-
-            temp_audio_path = temp_audio.name  # Get the temp file path
-
-        print(f"Audio saved to temporary file: {temp_audio_path}")
-
-        model = whisper.load_model("base") 
-        result = model.transcribe(temp_audio_path)
-        
-        print("Transcription:", result["text"])
-        # return result["text"] 
-
-
     def close(self) -> None:
         pass
+
+class AudioRecorder:
+    def __init__(self):
+        self.process = None
+        self.temp_audio_path = None
+
+    def startRecording(self):
+        """Starts the recording process using an external QProcess."""
+        self.temp_audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name  # Create a temp file
+        self.process = qt.QProcess()
+        
+        # Construct recording command using FFmpeg (cross-platform)
+        command = [
+            "ffmpeg", "-y", "-f", "avfoundation", 
+            "-i", ":default",
+            "-ac", "1", "-ar", "14400", "-acodec", "pcm_s16le", self.temp_audio_path
+        ]
+
+        print(f"Starting recording: {' '.join(command)}")
+        self.process.start(command[0], command[1:])
+
+    def stopRecording(self):
+        """Stops the recording process and processes the output file."""
+        if self.process:
+            self.process.write(b"q\n")
+            self.process.waitForFinished()
+            print(f"Recording stopped. Audio saved to: {self.temp_audio_path}")
+            
+            # Process the recorded file (e.g., Whisper transcription)
+            return self.transcribeAudio()
+
+    def transcribeAudio(self):
+        """Passes the recorded file to Whisper for transcription."""
+        model = whisper.load_model("base")
+        result = model.transcribe(self.temp_audio_path)
+        return result["text"]
