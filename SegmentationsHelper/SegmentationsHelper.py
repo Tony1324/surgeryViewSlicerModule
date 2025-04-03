@@ -28,6 +28,13 @@ except:
     slicer.util.pip_install('openai-whisper')
     import whisper
 
+try: 
+    from openai import OpenAI
+except:
+    slicer.util.pip_install('openai')
+    from openai import OpenAI
+
+
 @parameterPack
 class SegmentationSession:
     name: str
@@ -702,9 +709,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onClickedRecord(self):
         if self.recordButton.text == "Begin Recording":
             self.recordButton.setText("Recording")
+            self.recordButton.setStyleSheet("background-color: red; font-weight: bold; font-size: 20px")
             self.recorder.startRecording()
         else:
             self.recordButton.setText("Begin Recording")
+            self.recordButton.setStyleSheet("font-weight: bold; font-size: 20px")
             # prompt if user wants to stop
             if slicer.util.confirmOkCancelDisplay(_("Stop Recording?")):
                 text = self.recorder.stopRecording()
@@ -874,7 +883,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSegmentationButton.setEnabled(True)
             else:
                 self.sessionTabSegmentationButton.setEnabled(False)
-                # self.sessionTabSessionButton.setEnabled(False)
+                self.sessionTabSessionButton.setEnabled(False)
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
 
@@ -892,7 +901,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
-            # self.sessionTabSessionButton.setEnabled(False)
+            self.sessionTabSessionButton.setEnabled(False)
             self.showSessionsList()
         self.sessionListSelector.clear()
         for session in self._parameterNode.sessions:
@@ -948,6 +957,14 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def summarizeText(self, text):
         # todo
+        client = OpenAI()
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            instructions="You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown without other formatting",
+            input=text
+        )
+        return response.output_text
+
 
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
