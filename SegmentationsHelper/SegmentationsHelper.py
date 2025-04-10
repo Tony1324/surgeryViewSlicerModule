@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from typing import Annotated, Optional
 
 import vtk
@@ -51,6 +52,7 @@ class SegmentationSession:
     volumeNode: Optional[str] = None
     geometryNode: Optional[int] = None
     transcription: Optional[str] = None
+    summary: Optional[str] = None
 
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
@@ -92,7 +94,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
         self.recorder = AudioRecorder()
-        self.tmpdir = "/tmp/slicer_segmentations_helper/"
+        self.tmpdir = "/Users/breastcad/Desktop/slicer_segmentations_helper/"
         if not os.path.exists(self.tmpdir):
             os.mkdir(self.tmpdir)
 
@@ -378,6 +380,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.recordTranscriptText = qt.QPlainTextEdit()
         self.recordTranscriptText.setStyleSheet("border: 1px solid rgb(180,180,180); border-radius: 5px; background-color: white")
+        self.recordTranscriptText.textChanged.connect(self.transcriptTextChanged)
         recordingSessionLayout.addWidget(self.recordTranscriptText)
 
         self.summarizeTranscriptButton = qt.QPushButton("Summarize Transcript")
@@ -387,6 +390,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.summarizedTranscriptText = qt.QPlainTextEdit()
         self.summarizedTranscriptText.setStyleSheet("border: 1px solid rgb(180,180,180); border-radius: 5px; background-color: white")
+        self.summarizedTranscriptText.textChanged.connect(self.summarizedTranscriptTextChanged)
         recordingSessionLayout.addWidget(self.summarizedTranscriptText)
 
         self.captureImageButton = qt.QPushButton("Capture Current Screen")
@@ -733,10 +737,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self.recordButton.setStyleSheet("background-color: red; font-weight: bold; font-size: 20px")
             self.recorder.startRecording()
         else:
-            self.recordButton.setText("Begin Recording")
-            self.recordButton.setStyleSheet("font-weight: bold; font-size: 20px")
-            # prompt if user wants to stop
             if slicer.util.confirmOkCancelDisplay(_("Stop Recording?")):
+                self.recordButton.setText("Begin Recording")
+                self.recordButton.setStyleSheet("font-weight: bold; font-size: 20px")
                 text = self.recorder.stopRecording()
                 if text:
                     self.recordTranscriptText.setPlainText(text)
@@ -754,7 +757,19 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imagepath = self.getSessionFormattedName(self.getActiveSession()) + "_image.png"
         if not os.path.exists(imagepath):
             self.onCaptureImage()
-        self.logic.exportPdf("![Image](" + imagepath + ") \n\n" + self.summarizedTranscriptText.toPlainText(), self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")
+        self.logic.exportPdf("![Image](./" + imagepath + ") \n\n" + self.summarizedTranscriptText.toPlainText(), self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")
+        subprocess.call(('open', self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf"))
+
+    def transcriptTextChanged(self):
+        print("changed")
+        session = self.getActiveSession()
+        if session:
+            session.transcription = self.recordTranscriptText.toPlainText()
+
+    def summarizedTranscriptTextChanged(self):
+        session = self.getActiveSession()
+        if session:
+            session.summary = self.summarizedTranscriptText.toPlainText()
 
     def getActiveSession(self):
         if self.hasActiveSession():
@@ -817,10 +832,21 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             self._parameterNode.sessions[self._parameterNode.activeSession].geometryNode = geometryNode.GetID()
 
     def loadSession(self):
-        if self.sessionListSelector.currentRow == -1:
+        row = self.sessionListSelector.currentRow
+        if row == -1:
             self._parameterNode.activeSession = None
             return
-        self._parameterNode.activeSession = self.sessionListSelector.currentRow
+        self._parameterNode.activeSession = row
+        
+        session = self._parameterNode.sessions[row]
+        if session.transcription:
+            self.recordTranscriptText.setPlainText(session.transcription)
+        else: 
+            self.recordTranscriptText.setPlainText("")
+        if session.summary:
+            self.summarizedTranscriptText.setPlainText(session.summary)
+        else:
+            self.summarizedTranscriptText.setPlainText("")
         self.showImageSelector()
 
     def updateSessionName(self,*_):
@@ -936,8 +962,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.segmentationEditorUI.setSegmentationNode(None)
                 self.segmentationEditorUI.setSourceVolumeNode(None)
             
-            if self.getActiveSession().transcription:
-                self.recordTranscriptText.setPlainText(self.getActiveSession().transcription)
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
