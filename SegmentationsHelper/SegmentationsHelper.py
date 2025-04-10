@@ -18,6 +18,7 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import threading
 import tempfile
+import re
 
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/Cellar"
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
@@ -91,7 +92,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
         self.recorder = AudioRecorder()
-        self.tmpdir = "/tmp/segmentations"
+        self.tmpdir = "/tmp/slicer_segmentations_helper/"
+        if not os.path.exists(self.tmpdir):
+            os.mkdir(self.tmpdir)
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -356,7 +359,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
         self.visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
         visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
-        
         activeSessionInterfaceLayout.addWidget(self.visionProInterface)
 
         recordingSessionToggleButton = qt.QPushButton("▼ Record Tools")
@@ -389,12 +391,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.captureImageButton = qt.QPushButton("Capture Current Screen")
         self.captureImageButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        self.captureImageButton.clicked.connect(self.onCaptureImage())
+        self.captureImageButton.clicked.connect(self.onCaptureImage)
         recordingSessionLayout.addWidget(self.captureImageButton)
 
         self.exportPDFButton = qt.QPushButton("Export PDF")
         self.exportPDFButton.setStyleSheet("font-weight: bold; font-size: 20px")
-        self.exportPDFButton.clicked.connect(self.onExportPDF())
+        self.exportPDFButton.clicked.connect(self.onExportPDF)
         recordingSessionLayout.addWidget(self.exportPDFButton)
 
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
@@ -746,15 +748,28 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.summarizedTranscriptText.setPlainText(self.logic.summarizeText(self.recordTranscriptText.toPlainText()))
    
     def onCaptureImage(self):
-        self.logic.captureMainScreen(self.tmpdir + "image.png")
+        self.logic.captureMainScreen(self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_image.png")
     
     def onExportPDF(self):
-        self.logic.exportPdf(self.summarizedTranscriptText.toPlainText(), self.tmpdir + "image.png")
+        imagepath = self.getSessionFormattedName(self.getActiveSession()) + "_image.png"
+        if not os.path.exists(imagepath):
+            self.onCaptureImage()
+        self.logic.exportPdf("![Image](" + imagepath + ") \n\n" + self.summarizedTranscriptText.toPlainText(), self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")
 
     def getActiveSession(self):
         if self.hasActiveSession():
             return self._parameterNode.sessions[self._parameterNode.activeSession]
         return None
+    
+    def getSessionFormattedName(self, session):
+        if session:
+            str = session.name
+            cleaned = str.lower()
+            cleaned = re.sub(r'[^a-z0-9_\-\.]', "_", cleaned)
+            cleaned = re.sub(f'{re.escape("_")}+', "_", cleaned)
+            cleaned = cleaned.strip("_")
+            return cleaned
+        return "default_session"
     
     def getVolumeNodeFromSession(self, session):
         if session and session.volumeNode:
@@ -908,7 +923,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSegmentationButton.setEnabled(True)
             else:
                 self.sessionTabSegmentationButton.setEnabled(False)
-                self.sessionTabSessionButton.setEnabled(False)
+                # self.sessionTabSessionButton.setEnabled(False)
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
 
@@ -926,7 +941,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         else: 
             self.sessionListSelector.setCurrentRow(-1)
             self.sessionTabSegmentationButton.setEnabled(False)
-            self.sessionTabSessionButton.setEnabled(False)
+            # self.sessionTabSessionButton.setEnabled(False)
             self.showSessionsList()
         self.sessionListSelector.clear()
         for session in self._parameterNode.sessions:
@@ -993,14 +1008,12 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         )
         return response.output_text
 
-        pass
-
     def exportPdf(self, text, path):
         pdf = markdown_pdf.MarkdownPdf()
         pdf.add_section(markdown_pdf.Section(text))
         pdf.save(path)
 
-    def captureMainScreen(self, text, path):
+    def captureMainScreen(self, path):
         viewNodeID = "vtkMRMLViewNode1"
         cap = ScreenCapture.ScreenCaptureLogic()
         view = cap.viewFromNode(slicer.mrmlScene.GetNodeByID(viewNodeID))
@@ -1036,7 +1049,7 @@ class AudioRecorder:
             self.process.waitForFinished()
             print(f"Recording stopped. Audio saved to: {self.temp_audio_path}")
             
-            # Process the recorded file (e.g., Whisper transcription)
+            # Process the recorded file
             return self.transcribeAudio()
 
     def transcribeAudio(self):
