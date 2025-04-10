@@ -35,6 +35,14 @@ except:
     from openai import OpenAI
 
 
+try: 
+    import markdown_pdf
+except:
+    slicer.util.pip_install('markdown-pdf')
+    import markdown_pdf
+
+import ScreenCapture
+
 @parameterPack
 class SegmentationSession:
     name: str
@@ -83,6 +91,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
         self.recorder = AudioRecorder()
+        self.tmpdir = "/tmp/segmentations"
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -377,6 +386,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.summarizedTranscriptText = qt.QPlainTextEdit()
         self.summarizedTranscriptText.setStyleSheet("border: 1px solid rgb(180,180,180); border-radius: 5px; background-color: white")
         recordingSessionLayout.addWidget(self.summarizedTranscriptText)
+
+        self.captureImageButton = qt.QPushButton("Capture Current Screen")
+        self.captureImageButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.captureImageButton.clicked.connect(self.onCaptureImage())
+        recordingSessionLayout.addWidget(self.captureImageButton)
+
+        self.exportPDFButton = qt.QPushButton("Export PDF")
+        self.exportPDFButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        self.exportPDFButton.clicked.connect(self.onExportPDF())
+        recordingSessionLayout.addWidget(self.exportPDFButton)
 
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
         activeSessionInterfaceLayout.addStretch(1)
@@ -726,6 +745,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return
         self.summarizedTranscriptText.setPlainText(self.logic.summarizeText(self.recordTranscriptText.toPlainText()))
    
+    def onCaptureImage(self):
+        self.logic.captureMainScreen(self.tmpdir + "image.png")
+    
+    def onExportPDF(self):
+        self.logic.exportPdf(self.summarizedTranscriptText.toPlainText(), self.tmpdir + "image.png")
+
     def getActiveSession(self):
         if self.hasActiveSession():
             return self._parameterNode.sessions[self._parameterNode.activeSession]
@@ -951,6 +976,9 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     Uses ScriptedLoadableModuleLogic base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
+    def __init__(self) -> None:
+        """Called when the logic class is instantiated. Can be used for initializing member variables."""
+        ScriptedLoadableModuleLogic.__init__(self)
 
     def getParameterNode(self):
         return SegmentationsHelperParameterNode(super().getParameterNode())
@@ -965,10 +993,18 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         )
         return response.output_text
 
+        pass
 
-    def __init__(self) -> None:
-        """Called when the logic class is instantiated. Can be used for initializing member variables."""
-        ScriptedLoadableModuleLogic.__init__(self)
+    def exportPdf(self, text, path):
+        pdf = markdown_pdf.MarkdownPdf()
+        pdf.add_section(markdown_pdf.Section(text))
+        pdf.save(path)
+
+    def captureMainScreen(self, text, path):
+        viewNodeID = "vtkMRMLViewNode1"
+        cap = ScreenCapture.ScreenCaptureLogic()
+        view = cap.viewFromNode(slicer.mrmlScene.GetNodeByID(viewNodeID))
+        cap.captureImageFromView(view, path)
 
     def close(self) -> None:
         pass
