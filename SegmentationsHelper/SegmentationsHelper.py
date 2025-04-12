@@ -31,17 +31,16 @@ except:
     import whisper
 
 try: 
-    from openai import OpenAI
-except:
-    slicer.util.pip_install('openai')
-    from openai import OpenAI
-
-
-try: 
     import markdown_pdf
 except:
     slicer.util.pip_install('markdown-pdf')
     import markdown_pdf
+
+try: 
+    from transformers import pipeline
+except:
+    slicer.util.pip_install('transformers')
+    from transformers import pipeline
 
 import ScreenCapture
 
@@ -1023,14 +1022,13 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         return SegmentationsHelperParameterNode(super().getParameterNode())
     
     def summarizeText(self, text):
-        # todo
-        client = OpenAI()
-        response = client.responses.create(
-            model="gpt-4o-mini",
-            instructions="You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown without other formatting",
-            input=text
-        )
-        return response.output_text
+        messages = [
+            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown without other formatting."},
+            {"role": "user", "content": text},
+        ]
+        pipe = pipeline("image-text-to-text", model="meta-llama/Llama-4-Maverick-17B-128E-Instruct")
+        response = pipe(messages)
+        return response[0]["generated_text"][-1]["content"]
 
     def exportPdf(self, text, path):
         pdf = markdown_pdf.MarkdownPdf()
