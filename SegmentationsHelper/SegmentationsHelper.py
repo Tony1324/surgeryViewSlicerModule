@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import shutil
 from typing import Annotated, Optional
 
 import vtk
@@ -17,7 +18,6 @@ from slicer.util import VTKObservationMixin
 import qt
 from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
-import threading
 import tempfile
 import re
 
@@ -93,7 +93,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.connected = False
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
         self.recorder = AudioRecorder()
-        self.tmpdir = "/Users/breastcad/Desktop/slicer_segmentations_helper/"
+        self.tmpdir = "/tmp/slicer_segmentations_helper/"
         if not os.path.exists(self.tmpdir):
             os.mkdir(self.tmpdir)
 
@@ -756,11 +756,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         imagepath = self.getSessionFormattedName(self.getActiveSession()) + "_image.png"
         if not os.path.exists(imagepath):
             self.onCaptureImage()
-        self.logic.exportPdf("![Image](./" + imagepath + ") \n\n" + self.summarizedTranscriptText.toPlainText(), self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")
-        subprocess.call(('open', self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf"))
+        dir = qt.QFileDialog.getExistingDirectory()
+        if not dir:
+            return
+        pdf = markdown_pdf.MarkdownPdf()
+        pdf.add_section(markdown_pdf.Section("![image](" + imagepath +")", root=self.tmpdir))
+        
+        pdf.add_section(markdown_pdf.Section(self.summarizedTranscriptText.toPlainText()))
+        pdf.save(os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf"))
+        subprocess.call(('open', os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")))
 
     def transcriptTextChanged(self):
-        print("changed")
         session = self.getActiveSession()
         if session:
             session.transcription = self.recordTranscriptText.toPlainText()
@@ -1030,10 +1036,6 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         response = pipe(messages)
         return response[0]["generated_text"][-1]["content"]
 
-    def exportPdf(self, text, path):
-        pdf = markdown_pdf.MarkdownPdf()
-        pdf.add_section(markdown_pdf.Section(text))
-        pdf.save(path)
 
     def captureMainScreen(self, path):
         viewNodeID = "vtkMRMLViewNode1"
