@@ -760,7 +760,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if not dir:
             return
         pdf = markdown_pdf.MarkdownPdf()
-        pdf.add_section(markdown_pdf.Section("![image](" + imagepath +") \n \n" + self.summarizedTranscriptText.toPlainText(), root=self.tmpdir), user_css="* {font-family: sans-serif;}")
+        pdf.add_section(markdown_pdf.Section("# Transcript Summary \n ![image](" + imagepath +") \n \n " + self.summarizedTranscriptText.toPlainText(), root=self.tmpdir), user_css="* {font-family: sans-serif;}")
 
         pdf.save(os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf"))
         subprocess.call(('open', os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")))
@@ -1028,11 +1028,11 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def summarizeText(self, text):
         messages = [
-            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown without other formatting."},
+            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown, beginning with second level header, without other formatting."},
             {"role": "user", "content": text},
         ]
-        pipe = pipeline("text-generation", model="Qwen/Qwen2.5-0.5B-Instruct")
-        response = pipe(messages)
+        pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
+        response = pipe(messages, max_new_tokens=1000)
         return response[0]["generated_text"][-1]["content"]
 
 
