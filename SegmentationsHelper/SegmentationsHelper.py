@@ -3,6 +3,7 @@ import os
 import subprocess
 import shutil
 from typing import Annotated, Optional
+import traceback
 
 import vtk
 import SimpleITK as sitk
@@ -56,6 +57,7 @@ class SegmentationSession:
 @parameterNodeWrapper
 class SegmentationsHelperParameterNode:
     activeSession: Optional[int] = None
+    previousActiveSession: Optional[int] = None
     sessions: list[SegmentationSession] = []
 
 class SegmentationsHelper(ScriptedLoadableModule):
@@ -432,6 +434,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             if self.hasActiveSession() and self.getActiveSessionVolumeNode() is None:
                 self.setActiveSessionVolumeNode(node)
                 self.showSegmentationEditor()
+                self.showSession(self.getActiveSession())
 
     #HANDLE LAYOUT "TABS"
     def showConfigurationScreen(self):
@@ -704,7 +707,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 slicer.mrmlScene.RemoveNode(labelmapVolumeNode)
             if result:
                 slicer.util.infoDisplay(
-                    _("Label-Mask saved into MONAI Label Server"), detailedText=json.dumps(result, indent=2)
+                    _("Label-Mask saved into MONAI Label Server")
                 )
     
     def onTraining(self):
@@ -822,7 +825,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if session and session.geometryNode:
             folders = vtk.vtkCollection()
             slicer.mrmlScene.GetSubjectHierarchyNode().GetDataNodesInBranch(session.geometryNode, folders)
-            print(folders.GetNumberOfItems())
             return folders.GetItemAsObject(0)
         return None
     
@@ -941,10 +943,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
 
         if self.hasActiveSession():
-            self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
-            self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-            self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-            self.showSession(self._parameterNode.sessions[self._parameterNode.activeSession])
+            if self._parameterNode.activeSession != self._parameterNode.previousActiveSession:
+                self.showSession(self._parameterNode.sessions[self._parameterNode.activeSession])
+                self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
+                self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+                self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+
+                self._parameterNode.previousActiveSession = self._parameterNode.activeSession
 
             volume = self.getActiveSessionVolumeNode()
             if volume:
@@ -1028,7 +1033,7 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def summarizeText(self, text):
         messages = [
-            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of key points, then identify some questions asked and their responses. Output in valid markdown, beginning with second level header, without other formatting."},
+            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting."},
             {"role": "user", "content": text},
         ]
         pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
