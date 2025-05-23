@@ -362,6 +362,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProConnectionWidget = slicer.modules.applevisionpromodule.widgetRepresentation()
         self.visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
         visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
+
+        self.geometryModelsList = qt.QWidget()
+        self.geometryModelsListLayout = qt.QVBoxLayout(self.geometryModelsList)
+        self.geometryModelsListLayout.setContentsMargins(0, 0, 0, 0)
+        visionProInterfaceLayout.addWidget(self.geometryModelsList)
+
         activeSessionInterfaceLayout.addWidget(self.visionProInterface)
 
         recordingSessionToggleButton = qt.QPushButton("▼ Record Tools")
@@ -519,7 +525,50 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), self.getVolumeNodeFromSession(session).GetName() + "_models")
         session.geometryNode = exportFolderItemId
+        self.getSegmentationNodeFromSession(session).GetDisplayNode().SetVisibility3D(False)
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(self.getSegmentationNodeFromSession(session), exportFolderItemId)
+
+    def getGeometryModels(self, session):
+        if session and session.geometryNode:
+            shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+            models = vtk.vtkIdList()
+            shNode.GetItemChildren(session.geometryNode, models)
+            return models
+        return []
+    
+    def updateGeometryModels(self):
+        if self.hasActiveSession():
+            session = self.getActiveSession()
+            models = self.getGeometryModels(session)
+            shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+            while self.geometryModelsListLayout.count():
+                item = self.geometryModelsListLayout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.setParent(None)
+            for i in range(models.GetNumberOfIds()):
+                modelId = models.GetId(i)
+                model = shNode.GetItemDataNode(modelId)
+                if model:
+                    toggleButton = qt.QPushButton(model.GetName())
+                    toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
+                    if model.GetDisplayNode():
+                        if model.GetDisplayNode().GetVisibility():
+                            toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
+                        else:
+                            toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
+                    
+                    # on click, toggle the visibility of the model and change color
+                    def clicked(*_, model=model, toggleButton=toggleButton):
+                        if model.GetDisplayNode():
+                            if model.GetDisplayNode().GetVisibility():
+                                model.GetDisplayNode().SetVisibility(False)
+                                toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
+                            else:
+                                model.GetDisplayNode().SetVisibility(True)
+                                toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
+                    toggleButton.clicked.connect(clicked)
+                    self.geometryModelsListLayout.addWidget(toggleButton)
 
     def onPerformSegmentation(self):
         self.setIPAddresses()
@@ -967,6 +1016,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSessionButton.setEnabled(True)
                 self.segmentationEditorUI.setSegmentationNode(segmentation)
                 self.segmentationEditorUI.setSourceVolumeNode(volume)
+                self.updateGeometryModels()
             else:
                 self.segmentationEditorUI.setSegmentationNode(None)
                 self.segmentationEditorUI.setSourceVolumeNode(None)
