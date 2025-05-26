@@ -413,6 +413,10 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
         activeSessionInterfaceLayout.addStretch(1)
 
+        self.transcriptSummaryText = slicer.vtkMRMLTextNode()
+        self.transcriptSummaryText.SetName("TranscriptSummary")
+        slicer.mrmlScene.AddNode(self.transcriptSummaryText)
+        self.addObserver(self.transcriptSummaryText, self.transcriptSummaryText.TextModifiedEvent, self.updateTranscriptSummaryText)
 
         self.initializeParameterNode()
         # Connections
@@ -422,12 +426,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if saved_openigt_address and saved_image_server_address:
             self.showSessionsList()
 
-    def loadDataFromServer(self, *_):
-        self.setIPAddresses()
-        self.connectToImageServer()
-        self.monailabel.ui.strategyBox.currentText = "first"
-        self.monailabel.onNextSampleButton()
-        # self.volumeIsOnServer = True
+    # def loadDataFromServer(self, *_):
+    #     self.setIPAddresses()
+    #     self.connectToImageServer()
+    #     self.monailabel.ui.strategyBox.currentText = "first"
+    #     self.monailabel.onNextSampleButton()
+    #     # self.volumeIsOnServer = True
 
     def onFinishConfiguration(self):
         self.showSessionsList()
@@ -799,7 +803,16 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onSummarizeTranscript(self):
         if self.recordTranscriptText.toPlainText() == "":
             return
-        self.summarizedTranscriptText.setPlainText(self.logic.summarizeText(self.recordTranscriptText.toPlainText()))
+        self.logic.sendTranscriptForSummary(self.recordTranscriptText.toPlainText(), self.image_server_address_input.text)
+    
+    def updateTranscriptSummaryText(self, *_):
+        text = self.transcriptSummaryText.GetText()
+        if text == "":
+            return
+        session = self.getActiveSession()
+        if session:
+            self.summarizedTranscriptText.setPlainText(text)
+            session.summary = text
    
     def onCaptureImage(self):
         self.logic.captureMainScreen(self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_image.png")
@@ -1077,18 +1090,37 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
+        self.connector = None
+
+    def initClient(self,ip:str) -> None:
+        if self.connector is not None:
+            self.connector.Stop()
+            slicer.mrmlScene.RemoveNode(self.connector)
+            self.connector = None
+        self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
+        slicer.mrmlScene.AddNode(cnode)
+        cnode.SetTypeClient(ip, 18944)
+        cnode.Start()
+        # self.onConnection()
+        cnode.SetCheckCRC(False)
+
+    def sendString(self, string: str) -> None:
+        # Create a message with 32 bit int image data
+        text = slicer.vtkMRMLTextNode()
+        text.SetName("Text")
+        text.SetText(string)
+        slicer.mrmlScene.AddNode(text)
+        self.connector.RegisterOutgoingMRMLNode(text)
+        self.connector.PushNode(text)
+        self.connector.UnregisterOutgoingMRMLNode(text)
+        slicer.mrmlScene.RemoveNode(text)
 
     def getParameterNode(self):
         return SegmentationsHelperParameterNode(super().getParameterNode())
     
-    def summarizeText(self, text):
-        messages = [
-            {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting."},
-            {"role": "user", "content": text},
-        ]
-        pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
-        response = pipe(messages, max_new_tokens=1000)
-        return response[0]["generated_text"][-1]["content"]
+    def sendTranscriptForSummary(self, text, ip):
+        self.initClient(ip)
+        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting." + text)
 
 
     def captureMainScreen(self, path):
@@ -1098,7 +1130,10 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         cap.captureImageFromView(view, path)
 
     def close(self) -> None:
-        pass
+        if self.connector is not None:
+            self.connector.Stop()
+            slicer.mrmlScene.RemoveNode(self.connector)
+            self.connector = None
 
 class AudioRecorder:
     def __init__(self):
