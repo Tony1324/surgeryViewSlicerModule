@@ -530,8 +530,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), self.getVolumeNodeFromSession(session).GetName() + "_models")
         session.geometryNode = exportFolderItemId
+        geoFolder = slicer.vtkMRMLFolderDisplayNode()
+        slicer.mrmlScene.AddNode(geoFolder)
+        shNode.SetItemDataNode(exportFolderItemId, geoFolder)
         self.getSegmentationNodeFromSession(session).GetDisplayNode().SetVisibility3D(False)
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(self.getSegmentationNodeFromSession(session), exportFolderItemId)
+        self.updateGeometryModels()
 
     def getGeometryModels(self, session):
         if session and session.geometryNode:
