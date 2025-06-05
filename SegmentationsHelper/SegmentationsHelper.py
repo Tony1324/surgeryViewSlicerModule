@@ -4,6 +4,7 @@ import subprocess
 import shutil
 from typing import Annotated, Optional
 import traceback
+import codecs
 
 import vtk
 import SimpleITK as sitk
@@ -414,7 +415,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         activeSessionInterfaceLayout.addStretch(1)
 
         self.transcriptSummaryText = slicer.vtkMRMLTextNode()
-        self.transcriptSummaryText.SetName("TranscriptSummary")
+        self.transcriptSummaryText.SetName("TranscriptS")
         slicer.mrmlScene.AddNode(self.transcriptSummaryText)
         self.addObserver(self.transcriptSummaryText, self.transcriptSummaryText.TextModifiedEvent, self.updateTranscriptSummaryText)
 
@@ -811,7 +812,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return
         session = self.getActiveSession()
         if session:
-            self.summarizedTranscriptText.setPlainText(text)
+            self.summarizedTranscriptText.setPlainText(codecs.decode(text, 'unicode_escape'))
             session.summary = text
    
     def onCaptureImage(self):
@@ -1094,20 +1095,18 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
 
     def initClient(self,ip:str) -> None:
         if self.connector is not None:
-            self.connector.Stop()
-            slicer.mrmlScene.RemoveNode(self.connector)
-            self.connector = None
+            return
         self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
         slicer.mrmlScene.AddNode(cnode)
         cnode.SetTypeClient(ip, 18944)
         cnode.Start()
-        # self.onConnection()
         cnode.SetCheckCRC(False)
 
     def sendString(self, string: str) -> None:
         # Create a message with 32 bit int image data
         text = slicer.vtkMRMLTextNode()
-        text.SetName("Text")
+        text.SetEncoding(3)
+        text.SetName("Transcript")
         text.SetText(string)
         slicer.mrmlScene.AddNode(text)
         self.connector.RegisterOutgoingMRMLNode(text)
@@ -1120,7 +1119,7 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def sendTranscriptForSummary(self, text, ip):
         self.initClient(ip)
-        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting." + text)
+        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting: " + text)
 
 
     def captureMainScreen(self, path):
