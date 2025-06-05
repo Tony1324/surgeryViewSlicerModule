@@ -826,7 +826,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if not dir:
             return
         pdf = markdown_pdf.MarkdownPdf()
-        pdf.add_section(markdown_pdf.Section("# Transcript Summary \n ![image](" + imagepath +") \n \n " + self.summarizedTranscriptText.toPlainText(), root=self.tmpdir), user_css="* {font-family: sans-serif;}")
+        pdf.add_section(markdown_pdf.Section("# Transcript Summary \n ![image](" + imagepath +") \n \n " + self.summarizedTranscriptText.toPlainText(), root=self.tmpdir, toc=False), user_css="* {font-family: sans-serif;}")
 
         pdf.save(os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf"))
         subprocess.call(('open', os.path.join(dir, self.getSessionFormattedName(self.getActiveSession()) + "_transcript.pdf")))
@@ -1119,7 +1119,7 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def sendTranscriptForSummary(self, text, ip):
         self.initClient(ip)
-        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. Output in valid markdown, beginning with second level header, without other formatting: " + text)
+        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text)
 
 
     def captureMainScreen(self, path):
