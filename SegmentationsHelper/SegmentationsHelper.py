@@ -577,6 +577,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                                 model.GetDisplayNode().SetVisibility(True)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     toggleButton.clicked.connect(clicked)
+                    print("adding button")
                     self.geometryModelsListLayout.addWidget(toggleButton)
 
     def onPerformSegmentation(self):
@@ -1017,6 +1018,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
 
                 self._parameterNode.previousActiveSession = self._parameterNode.activeSession
+                self.updateGeometryModels()
 
             volume = self.getActiveSessionVolumeNode()
             if volume:
@@ -1034,7 +1036,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSessionButton.setEnabled(True)
                 self.segmentationEditorUI.setSegmentationNode(segmentation)
                 self.segmentationEditorUI.setSourceVolumeNode(volume)
-                self.updateGeometryModels()
             else:
                 self.segmentationEditorUI.setSegmentationNode(None)
                 self.segmentationEditorUI.setSourceVolumeNode(None)
