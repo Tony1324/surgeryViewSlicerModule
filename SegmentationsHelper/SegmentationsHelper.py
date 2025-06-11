@@ -570,11 +570,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     # on click, toggle the visibility of the model and change color
                     def clicked(*_, model=model, toggleButton=toggleButton):
                         if model.GetDisplayNode():
-                            if model.GetDisplayNode().GetVisibility():
-                                model.GetDisplayNode().SetVisibility(False)
+                            if model.GetDisplayNode().GetOpacity() > 0.5:
+                                model.GetDisplayNode().SetOpacity(0.2)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
                             else:
-                                model.GetDisplayNode().SetVisibility(True)
+                                model.GetDisplayNode().SetOpacity(1)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     toggleButton.clicked.connect(clicked)
                     self.geometryModelsListLayout.addWidget(toggleButton)
