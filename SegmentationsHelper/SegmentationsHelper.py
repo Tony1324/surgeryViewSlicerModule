@@ -573,7 +573,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     if model.GetDisplayNode():
                         if toggle == False:
-                            model.GetDisplayNode().SetOpacity(0.2)
+                            model.GetDisplayNode().SetOpacity(0.1)
                         if toggle:
                             model.GetDisplayNode().SetOpacity(1)
                         if model.GetDisplayNode().GetOpacity() > 0.5:
@@ -585,13 +585,12 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     def clicked(*_, model=model, toggleButton=toggleButton):
                         if model.GetDisplayNode():
                             if model.GetDisplayNode().GetOpacity() > 0.5:
-                                model.GetDisplayNode().SetOpacity(0.2)
+                                model.GetDisplayNode().SetOpacity(0.1)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
                             else:
                                 model.GetDisplayNode().SetOpacity(1)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     toggleButton.clicked.connect(clicked)
-                    print("adding button")
                     self.geometryModelsListLayout.addWidget(toggleButton)
 
     def onPerformSegmentation(self):
@@ -638,7 +637,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def performSegmentation(self):
         # try:
-        model = "deepedit"
+        model = "wholeBody_ct_segmentation"
         image_file = self.getActiveSessionVolumeNode().GetName()
         params = self.monailabel.getParamsFromConfig("infer", model)
 
@@ -787,7 +786,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         try:
             qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
-            model = "deepedit"
+            model = "wholeBody_ct_segmentation"
 
             params = self.monailabel.getParamsFromConfig("train", model)
 
