@@ -22,6 +22,8 @@ from slicer import vtkMRMLScalarVolumeNode
 from time import sleep
 import tempfile
 import re
+import vtkSegmentationCorePython as vtkSegmentationCore
+
 
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/Cellar"
 os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
@@ -544,8 +546,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         geoFolder = slicer.vtkMRMLFolderDisplayNode()
         slicer.mrmlScene.AddNode(geoFolder)
         shNode.SetItemDataNode(exportFolderItemId, geoFolder)
-        self.getSegmentationNodeFromSession(session).GetDisplayNode().SetVisibility3D(False)
-        slicer.modules.segmentations.logic().ExportAllSegmentsToModels(self.getSegmentationNodeFromSession(session), exportFolderItemId)
+        segmentation = self.getSegmentationNodeFromSession(session)
+        segmentation.GetDisplayNode().SetVisibility3D(False)
+        segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","1.0")
+        segmentation.GetSegmentation().CreateRepresentation(vtkSegmentationCore.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
+        slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation, exportFolderItemId)
         self.updateGeometryModels()
 
     def getGeometryModels(self, session):
