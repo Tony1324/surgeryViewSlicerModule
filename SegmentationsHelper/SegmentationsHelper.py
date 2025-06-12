@@ -549,14 +549,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.updateGeometryModels()
 
     def getGeometryModels(self, session):
+        models = vtk.vtkIdList()
         if session and session.geometryNode:
             shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-            models = vtk.vtkIdList()
             shNode.GetItemChildren(session.geometryNode, models)
-            return models
-        return []
+        return models
    
-    def updateGeometryModels(self, toggle):
+    def updateGeometryModels(self, toggle=None):
         if self.hasActiveSession():
             session = self.getActiveSession()
             models = self.getGeometryModels(session)
