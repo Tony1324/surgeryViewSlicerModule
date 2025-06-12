@@ -364,6 +364,17 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.visionProConnectionWidget.setContentsMargins(-10,-10,-10,-10)
         visionProInterfaceLayout.addWidget(self.visionProConnectionWidget)
 
+        modelToggleButtons = qt.QWidget()
+        modelToggleButtonsLayout = qt.QHBoxLayout(modelToggleButtons)
+        modelToggleButtonsLayout.setContentsMargins(0,0,0,0)
+        showAllModelButton = qt.QPushButton("Show All Models")
+        hideAllModelButton = qt.QPushButton("Hide All Models")
+        showAllModelButton.clicked.connect(lambda *_: self.updateGeometryModels(True))
+        hideAllModelButton.clicked.connect(lambda *_: self.updateGeometryModels(False))
+        modelToggleButtonsLayout.addWidget(showAllModelButton)
+        modelToggleButtonsLayout.addWidget(hideAllModelButton)
+        visionProInterfaceLayout.addWidget(modelToggleButtons)
+
         self.geometryModelsList = qt.QWidget()
         self.geometryModelsListLayout = qt.QVBoxLayout(self.geometryModelsList)
         self.geometryModelsListLayout.setContentsMargins(0, 0, 0, 0)
@@ -544,8 +555,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             shNode.GetItemChildren(session.geometryNode, models)
             return models
         return []
-    
-    def updateGeometryModels(self):
+   
+    def updateGeometryModels(self, toggle):
         if self.hasActiveSession():
             session = self.getActiveSession()
             models = self.getGeometryModels(session)
@@ -562,7 +573,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     toggleButton = qt.QPushButton(model.GetName())
                     toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     if model.GetDisplayNode():
-                        if model.GetDisplayNode().GetVisibility():
+                        if toggle == False:
+                            model.GetDisplayNode().SetOpacity(0.2)
+                        if toggle:
+                            model.GetDisplayNode().SetOpacity(1)
+                        if model.GetDisplayNode().GetOpacity() > 0.5:
                             toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                         else:
                             toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
@@ -570,11 +585,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     # on click, toggle the visibility of the model and change color
                     def clicked(*_, model=model, toggleButton=toggleButton):
                         if model.GetDisplayNode():
-                            if model.GetDisplayNode().GetVisibility():
-                                model.GetDisplayNode().SetVisibility(False)
+                            if model.GetDisplayNode().GetOpacity() > 0.5:
+                                model.GetDisplayNode().SetOpacity(0.2)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left; background-color: lightgray")
                             else:
-                                model.GetDisplayNode().SetVisibility(True)
+                                model.GetDisplayNode().SetOpacity(1)
                                 toggleButton.setStyleSheet("font-weight: bold; font-size: 15px; text-align: left")
                     toggleButton.clicked.connect(clicked)
                     print("adding button")

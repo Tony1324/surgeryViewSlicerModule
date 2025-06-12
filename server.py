@@ -29,7 +29,7 @@ import sys
 import threading
 import time
 
-from .messages import MessageBase
+from pyigtl import MessageBase
 
 logger = logging.getLogger(__name__)
 
