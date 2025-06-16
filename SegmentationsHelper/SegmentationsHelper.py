@@ -5,6 +5,7 @@ import shutil
 from typing import Annotated, Optional
 import traceback
 import codecs
+import requests
 
 import vtk
 import SimpleITK as sitk
@@ -427,11 +428,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         activeSessionInterfaceLayout.addWidget(self.recordingSession)
         activeSessionInterfaceLayout.addStretch(1)
 
-        self.transcriptSummaryText = slicer.vtkMRMLTextNode()
-        self.transcriptSummaryText.SetName("TranscriptS")
-        slicer.mrmlScene.AddNode(self.transcriptSummaryText)
-        self.addObserver(self.transcriptSummaryText, self.transcriptSummaryText.TextModifiedEvent, self.updateTranscriptSummaryText)
-
         self.initializeParameterNode()
         # Connections
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
@@ -827,16 +823,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def onSummarizeTranscript(self):
         if self.recordTranscriptText.toPlainText() == "":
             return
-        self.logic.sendTranscriptForSummary(self.recordTranscriptText.toPlainText(), self.image_server_address_input.text)
-    
-    def updateTranscriptSummaryText(self, *_):
-        text = self.transcriptSummaryText.GetText()
+        text = self.logic.sendTranscriptForSummary(self.recordTranscriptText.toPlainText(), self.image_server_address_input.text)
         if text == "":
             return
         session = self.getActiveSession()
         if session:
             self.summarizedTranscriptText.setPlainText(codecs.decode(text, 'unicode_escape'))
-            session.summary = text
+            session.summary = codecs.decode(text, 'unicode_escape')
    
     def onCaptureImage(self):
         self.logic.captureMainScreen(self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_image.png")
@@ -1116,34 +1109,15 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         self.connector = None
 
-    def initClient(self,ip:str) -> None:
-        if self.connector is not None:
-            return
-        self.connector = cnode = slicer.vtkMRMLIGTLConnectorNode()
-        slicer.mrmlScene.AddNode(cnode)
-        cnode.SetTypeClient(ip, 18944)
-        cnode.Start()
-        cnode.SetCheckCRC(False)
-
-    def sendString(self, string: str) -> None:
-        # Create a message with 32 bit int image data
-        text = slicer.vtkMRMLTextNode()
-        text.SetEncoding(3)
-        text.SetName("Transcript")
-        text.SetText(string)
-        slicer.mrmlScene.AddNode(text)
-        self.connector.RegisterOutgoingMRMLNode(text)
-        self.connector.PushNode(text)
-        self.connector.UnregisterOutgoingMRMLNode(text)
-        slicer.mrmlScene.RemoveNode(text)
-
     def getParameterNode(self):
         return SegmentationsHelperParameterNode(super().getParameterNode())
     
     def sendTranscriptForSummary(self, text, ip):
-        self.initClient(ip)
-        self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text)
-
+        # self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text)
+        headers = {'Content-Type': 'text/plain'}
+        response = requests.post("http://"+ip+":18944",data=text,headers=headers)
+        print(response.content)
+        return response.content
 
     def captureMainScreen(self, path):
         viewNodeID = "vtkMRMLViewNode1"
@@ -1152,10 +1126,7 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         cap.captureImageFromView(view, path)
 
     def close(self) -> None:
-        if self.connector is not None:
-            self.connector.Stop()
-            slicer.mrmlScene.RemoveNode(self.connector)
-            self.connector = None
+        pass
 
 class AudioRecorder:
     def __init__(self):
