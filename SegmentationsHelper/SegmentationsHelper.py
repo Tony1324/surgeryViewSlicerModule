@@ -638,7 +638,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def performSegmentation(self):
         # try:
-        model = "wholeBody_ct_segmentation"
+        model = "deepedit"
         image_file = self.getActiveSessionVolumeNode().GetName()
         params = self.monailabel.getParamsFromConfig("infer", model)
 
@@ -787,7 +787,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         try:
             qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
-            model = "wholeBody_ct_segmentation"
+            model = "deepedit"
 
             params = self.monailabel.getParamsFromConfig("train", model)
 
@@ -828,8 +828,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
             return
         session = self.getActiveSession()
         if session:
-            self.summarizedTranscriptText.setPlainText(codecs.decode(text, 'unicode_escape'))
-            session.summary = codecs.decode(text, 'unicode_escape')
+            self.summarizedTranscriptText.setPlainText(codecs.decode(text, 'utf-8'))
+            session.summary = codecs.decode(text, 'utf-8')
    
     def onCaptureImage(self):
         self.logic.captureMainScreen(self.tmpdir + self.getSessionFormattedName(self.getActiveSession()) + "_image.png")
@@ -1113,9 +1113,8 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
         return SegmentationsHelperParameterNode(super().getParameterNode())
     
     def sendTranscriptForSummary(self, text, ip):
-        # self.sendString("You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text)
         headers = {'Content-Type': 'text/plain'}
-        response = requests.post("http://"+ip+":18944",data=text,headers=headers)
+        response = requests.post("http://"+ip+":18944",data="You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text,headers=headers)
         print(response.content)
         return response.content
 
