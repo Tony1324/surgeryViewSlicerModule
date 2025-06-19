@@ -53,6 +53,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self._parameterNode = None
         self._parameterNodeGuiTag = None
         self.connected = False
+        self.session = None
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -214,7 +215,17 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.onSendVolumeButtonClicked()
 
     def onSendModelsButtonClicked(self):
-        models = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
+        print(self.session)
+        models = []
+        if self.session == None:
+            models = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
+        else:
+            _models = vtk.vtkIdList()
+            if self.session and self.session.geometryNode:
+                shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
+                shNode.GetItemChildren(self.session.geometryNode, _models)
+            for i in range(_models.GetNumberOfIds()):
+                models.append(shNode.GetItemDataNode(models.GetId(i)))
 
         for i in range(models.GetNumberOfItems()):
             model = models.GetItemAsObject(i)
@@ -244,7 +255,10 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             self.status_label.setText("Status: Not Connected")
 
     def onSendVolumeButtonClicked(self) -> None:
-        volume = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
+        if self.session == None:
+            volume = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
+        else: 
+            volume = slicer.mrmlScene.GetNodeByID(self.session.volumeNode)
         self.logic.sendImage(volume)
 
     def onShowVolumeClicked(self) -> None:

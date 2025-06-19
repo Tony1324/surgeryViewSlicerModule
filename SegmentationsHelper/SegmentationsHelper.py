@@ -1030,6 +1030,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
                 self._parameterNode.previousActiveSession = self._parameterNode.activeSession
                 self.updateGeometryModels()
+                self.visionProConnectionWidget.self().session = self.getActiveSession()
 
             volume = self.getActiveSessionVolumeNode()
             if volume:
@@ -1065,6 +1066,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.removeObservers()
+        self.visionProConnectionWidget.self().session = None
         self.logic.close()
 
     def enter(self) -> None:
