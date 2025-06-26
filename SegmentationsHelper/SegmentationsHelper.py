@@ -1,9 +1,7 @@
 import logging
 import os
 import subprocess
-import shutil
 from typing import Annotated, Optional
-import traceback
 import codecs
 import requests
 
@@ -12,7 +10,6 @@ import SimpleITK as sitk
 import sitkUtils
 
 import slicer
-import numpy as np
 from slicer.parameterNodeWrapper import *
 from slicer.i18n import tr as _
 from slicer.i18n import translate
@@ -20,7 +17,6 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 import qt
 from slicer import vtkMRMLScalarVolumeNode
-from time import sleep
 import tempfile
 import re
 import vtkSegmentationCorePython as vtkSegmentationCore
@@ -72,23 +68,16 @@ class SegmentationsHelper(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = _("SegmentationsHelper")  
-        # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Vision Pro Connection")]
-        self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Tony Zhang"]  # TODO: replace with "Firstname Lastname (Organization)"
-        # TODO: update with short description of the module and a link to online module documentation
-        # _() function marks text as translatable to other languages
+        self.parent.dependencies = ["AppleVisionProModule", "MONAILabel"]
+        self.parent.contributors = ["Tony Zhang"]
         self.parent.helpText = _("""
         A module intended for use to automatically segment CT and MRI Images and use Apple Vision Pro for visualization
 """)
-        # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _(""" """)
 
 
 class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
-    """Uses ScriptedLoadableModuleWidget base class, available at:
-    https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
-    """
 
     def __init__(self, parent=None) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -96,9 +85,14 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = SegmentationsHelperLogic()
         self._parameterNode = None
-        self.connected = False
+        
+        #uses 3D Slicer's monailabel module to help process segmentations with imaging server
         self.monailabel = slicer.modules.monailabel.widgetRepresentation().self()
+
+        #for generating transcripts of session from audio recording
         self.recorder = AudioRecorder()
+
+
         self.tmpdir = "/tmp/slicer_segmentations_helper/"
         if not os.path.exists(self.tmpdir):
             os.mkdir(self.tmpdir)
@@ -107,7 +101,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         """Called when the user opens the module the first time and the widget is initialized."""
         ScriptedLoadableModuleWidget.setup(self)
 
-        #Set slicer ui
+        #Hide majority of 3D Slicer interface to minimize distractions
         slicer.util.setStatusBarVisible(False)
         slicer.util.setToolbarsVisible(False)
         slicer.util.setModulePanelTitleVisible(False)
@@ -116,11 +110,25 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         slicer.util.setPythonConsoleVisible(False)
         slicer.util.setDataProbeVisible(False)
 
-        # Create main widget and layout
+        #The remaining section of setup() programmatically creates all UI for the module,
+        #then will be populated with information from each session
+
+        # UI Structure:
+        #   -   CONFIGURATION SCREEN: shown on first startup or opened from button. 
+        #       stores IP addresses to connect to Vision Pro and imaging server.
+        #   -   SESSIONS VIEW: main screen of module, provides list of individual sessions for each CT/MRI image
+        #   -   SESSION DETAIL VIEWS: (the same qt interface objects remain for all sessions, only content is update with onParameterNodeChanged() function)
+        #           -   VOLUME SELECTOR: session specific configuration (just name for now) and choosing CT/MRI image
+        #           -   SEGMENTATION EDITOR: generates default segmentations using monailabel, then provides tools for manual refining
+        #           -   SESSION INTERFACE: main panel to be used during patient session. Connection and interaction tools for Apple Vision Pro, and transcript recording and summary
+
         panelWidget = qt.QWidget()
         layout = qt.QVBoxLayout(panelWidget)
+
         # Set scene in MRML widgets
         self.layout.addWidget(panelWidget)
+
+        # Set UI style defaults
         panelWidget.setStyleSheet("""
             QPushButton, QLineEdit { border-radius: 5px;  background-color: white; padding: 8px; opacity: 1} 
             QPushButton:hover { border: 2px solid black} 
@@ -145,6 +153,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         openigt_address_label = qt.QLabel("Vision Pro IP Address")
         configurationScreenLayout.addWidget(openigt_address_label)
+
+        # both IP addresses saved to settings so they are persistent
 
         self.openigt_address_input = qt.QLineEdit()
         self.openigt_address_input.setPlaceholderText("Vision Pro IP Address")
@@ -195,6 +205,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         #add and remove buttons
         sessionListButtonContainer = qt.QWidget()
         sessionListButtonContainerLayout = qt.QHBoxLayout(sessionListButtonContainer)
+
         # remove margin to the sides of the buttons
         sessionListButtonContainerLayout.setContentsMargins(0, 0, 0, 0)
 
@@ -212,6 +223,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.sessionListSelector = qt.QListWidget()
         self.sessionListSelector.setFixedHeight(300)
+
         #listen for selection changes
         self.sessionListSelector.currentItemChanged.connect(self.syncSessionUI)
         sessionsListLayout.addWidget(self.sessionListSelector)
@@ -273,7 +285,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionTabSessionButton.setStyleSheet("background-color: transparent")
         self.sessionTabSessionButton.setFixedHeight(35)
         self.sessionTabSessionButton.clicked.connect(self.showActiveSessionInterface)
-        # self.sessionTabSessionButton.setEnabled(False)
+        self.sessionTabSessionButton.setEnabled(False)
         sessionTabContainerLayout.addWidget(self.sessionTabSessionButton)    
 
         layout.addWidget(self.sessionContainer)
@@ -288,14 +300,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         imageSelectorLayout.addStretch(1)
 
-        # self.volumeIsOnServer = False
-
         self.sessionNameInput = qt.QLineEdit()
         self.sessionNameInput.setPlaceholderText("Session Name")
         self.sessionNameInput.setStyleSheet("background-color: white; font-weight: bold; font-size: 20px; padding: 10px")
         self.sessionNameInput.textChanged.connect(self.updateSessionName)
         imageSelectorLayout.addWidget(self.sessionNameInput)
-
 
         # invoke Add Data window
         self.addDataButton = qt.QPushButton("Choose Volume From Files")
@@ -328,6 +337,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
         self.segmentationEditorUI = slicer.qMRMLSegmentEditorWidget()
         self.segmentationEditorUI.setMRMLScene(slicer.mrmlScene)
+        #hide many redundant UI elements in default UI, such as switching images (we want editor to be locked on the same segmentation as the session)
         children = self.segmentationEditorUI.children()
         children[1].setVisible(False)
         children[2].setVisible(False)
@@ -340,7 +350,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentationEditorLayout.addWidget(self.segmentationEditorUI)
 
         segmentationEditorLayout.addStretch(1)
-        # add next button
         nextButton = qt.QPushButton("Submit Edits")
         nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
         nextButton.clicked.connect(self.onFinishSegmentation)
@@ -464,7 +473,6 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionsList.hide()
         self.sessionContainer.hide()
         self.configurationScreen.show()
-
     
     def showSessionsList(self):
         self.imageSelector.hide()
@@ -507,14 +515,11 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         self.sessionTabImageButton.setStyleSheet("background-color: transparent")
         self.sessionTabSegmentationButton.setStyleSheet("background-color: transparent")
     
-        
-    
     def resetToSessionsList(self):
         if self.hasActiveSession():
             self.showSession(None)
         self._parameterNode.activeSession = None
         self.showSessionsList()
-
 
     def validateIPAddress(self, *_):
         if self.image_server_address_input.text.strip() == "" or self.openigt_address_input.text.strip() == "":
@@ -544,6 +549,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         shNode.SetItemDataNode(exportFolderItemId, geoFolder)
         segmentation = self.getSegmentationNodeFromSession(session)
         segmentation.GetDisplayNode().SetVisibility3D(False)
+        #by default, generated segmentations are very blocky, this makes them look less like voxels
         segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","1.0")
         segmentation.GetSegmentation().CreateRepresentation(vtkSegmentationCore.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation, exportFolderItemId)
@@ -604,6 +610,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.performSegmentation()
                 self.showSegmentationEditor()
 
+    #the following functions from uploadVolume to onTraining are reimplementations of monailabel, largely copied
+    #this is because monailabel is hardcoded to upload first volume in mrmlScene, with no possible configuration
     def uploadVolume(self, volumeNode):
         image_id = volumeNode.GetName()
 
@@ -1018,6 +1026,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self._parameterNode:
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.onParameterNodeModified)
 
+    # since all data is stored in the parameterNode, this is where virtually all UI updates happen
+    # editing textfields for example, triggers this function to run on every key press, so I have tried to limit updates where possible. 
     def onParameterNodeModified(self, *_):
         self.removeSessionButton.setEnabled(len(self._parameterNode.sessions) != 0)
 
@@ -1129,6 +1139,12 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
 
     def close(self) -> None:
         pass
+
+# Records audio to separate file
+# QT python runs differently than a regular python interpreter, since code is locked to UI updates
+# this means that audio streaming libraries that require constant sampling do not work
+# this also makes custom implementations of tcp/ip very difficult as well, which is why all communication is handled by OpenIGTLink
+# instead, we call ffmpeg externally to record data and then process it.
 
 class AudioRecorder:
     def __init__(self):

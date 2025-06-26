@@ -1,7 +1,3 @@
-import logging
-import os
-from typing import Annotated, Optional
-
 import vtk
 
 import slicer
@@ -10,29 +6,19 @@ from slicer.i18n import translate
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 import qt
-from slicer import vtkMRMLScalarVolumeNode
-from time import sleep
-import threading
 
 #
 # AppleVisionProModule
 #
 
-
 class AppleVisionProModule(ScriptedLoadableModule):
-    """Uses ScriptedLoadableModule base class, available at:
-    https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
-    """
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = _("Apple Vision Pro Module")  
-        # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Vision Pro Connection")]
-        self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Tony Zhang"]  # TODO: replace with "Firstname Lastname (Organization)"
-        # TODO: update with short description of the module and a link to online module documentation
-        # _() function marks text as translatable to other languages
+        self.parent.dependencies = ["OpenIGTLinkIF"]
+        self.parent.contributors = ["Tony Zhang"]
         self.parent.helpText = _("""
         A module intended for use with Apple Vision Pro to send models via OpenIGTLink for visualization
 """)
@@ -41,9 +27,6 @@ class AppleVisionProModule(ScriptedLoadableModule):
 
 
 class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
-    """Uses ScriptedLoadableModuleWidget base class, available at:
-    https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
-    """
 
     def __init__(self, parent=None) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -148,7 +131,9 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Create logic class instance
         self.logic = AppleVisionProModuleLogic()
 
-        #these text nodes get modified by messages from the vision pro
+        # When the OpenIGTLinkModule receives messages with a certain device name, it creates texts nodes in the MRML Scene
+        # By creating these nodes first, we can listen to updates set from the Apple Vision Pro
+
         self.axialText = slicer.vtkMRMLTextNode()
         self.axialText.SetName("AXIAL")
         slicer.mrmlScene.AddNode(self.axialText)
@@ -169,6 +154,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         slicer.mrmlScene.AddNode(self.entitySelection)
         self.addObserver(self.entitySelection, self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
 
+        # Used for updating cursor
         self.crosshairNode=slicer.util.getNode("Crosshair")
         self.addObserver(self.crosshairNode, slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
 
