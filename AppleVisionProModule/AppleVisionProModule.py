@@ -215,7 +215,6 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.onSendVolumeButtonClicked()
 
     def onSendModelsButtonClicked(self):
-        print(self.session)
         models = []
         if self.session == None:
             models = slicer.mrmlScene.GetNodesByClass('vtkMRMLModelNode')
@@ -225,10 +224,9 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
                 shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
                 shNode.GetItemChildren(self.session.geometryNode, _models)
             for i in range(_models.GetNumberOfIds()):
-                models.append(shNode.GetItemDataNode(models.GetId(i)))
+                models.append(shNode.GetItemDataNode(_models.GetId(i)))
 
-        for i in range(models.GetNumberOfItems()):
-            model = models.GetItemAsObject(i)
+        for model in models:
             if "Volume Slice" in model.GetName():
                 continue
             print(f"Sending model: {model.GetName()}")
@@ -395,7 +393,6 @@ class AppleVisionProModuleLogic(ScriptedLoadableModuleLogic):
 
 
     def sendModelDisplayProperties(self, model) -> None:
-        print("sending")
         color = model.GetDisplayNode().GetColor()
         self.sendString(model.GetName()+"---"+self.formatColor(color),"MODELCOLOR")
         opacity = model.GetDisplayNode().GetOpacity()  if model.GetDisplayNode().GetVisibility() else 0
