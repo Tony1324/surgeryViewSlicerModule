@@ -50,7 +50,7 @@ class SegmentationSession:
     name: str
     segmentationNode: Optional[str] = None
     volumeNode: Optional[str] = None
-    geometryNode: Optional[int] = None
+    geometryNode: Optional[str] = None
     transcription: Optional[str] = None
     summary: Optional[str] = None
 
@@ -543,9 +543,9 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
     def exportSegmentationToModels(self, session):
         shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
         exportFolderItemId = shNode.CreateFolderItem(shNode.GetSceneItemID(), self.getVolumeNodeFromSession(session).GetName() + "_models")
-        session.geometryNode = exportFolderItemId
         geoFolder = slicer.vtkMRMLFolderDisplayNode()
         slicer.mrmlScene.AddNode(geoFolder)
+        session.geometryNode = geoFolder.GetID()
         shNode.SetItemDataNode(exportFolderItemId, geoFolder)
         segmentation = self.getSegmentationNodeFromSession(session)
         segmentation.GetDisplayNode().SetVisibility3D(False)
@@ -559,7 +559,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         models = vtk.vtkIdList()
         if session and session.geometryNode:
             shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-            shNode.GetItemChildren(session.geometryNode, models)
+            shNode.GetItemChildren(shNode.GetItemByDataNode(self.getGeometryNodeFromSession(session)), models)
         return models
    
     def updateGeometryModels(self, toggle=None):
@@ -910,9 +910,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def getGeometryNodeFromSession(self, session):
         if session and session.geometryNode:
-            folders = vtk.vtkCollection()
-            slicer.mrmlScene.GetSubjectHierarchyNode().GetDataNodesInBranch(session.geometryNode, folders)
-            return folders.GetItemAsObject(0)
+            return slicer.mrmlScene.GetNodeByID(session.geometryNode)
         return None
     
     def getActiveSessionGeometryNode(self):
@@ -922,7 +920,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def setActiveSessionGeometryNode(self, geometryNode):
         if self.hasActiveSession():
-            self._parameterNode.sessions[self._parameterNode.activeSession].geometryNode = geometryNode.GetID()
+            self._parameterNode.sessions[self._parameterNode.activeSession].geometryNode = str(geometryNode.GetID())
 
     def loadSession(self):
         row = self.sessionListSelector.currentRow
@@ -954,7 +952,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                     s.GetDisplayNode().SetVisibility(False)
                 if _session.geometryNode != None:
                     sh = slicer.mrmlScene.GetSubjectHierarchyNode()
-                    sh.SetItemDisplayVisibility(_session.geometryNode, False)
+                    sh.SetItemDisplayVisibility(sh.GetItemByDataNode(self.getGeometryNodeFromSession(_session)), False)
             except:
                 pass
         if session:
@@ -963,9 +961,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 if (s:=self.getSegmentationNodeFromSession(session)) != None:
                     s.GetDisplayNode().SetVisibility(True)
                 if session.geometryNode != None:
-                    print(session.geometryNode)
                     sh = slicer.mrmlScene.GetSubjectHierarchyNode()
-                    sh.SetItemDisplayVisibility(session.geometryNode, True)
+                    sh.SetItemDisplayVisibility(sh.GetItemByDataNode(self.getGeometryNodeFromSession(session)), True)
             except:
                 pass
         else:
@@ -1050,7 +1047,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
                 self.sessionTabSegmentationButton.setEnabled(True)
             else:
                 self.sessionTabSegmentationButton.setEnabled(False)
-                # self.sessionTabSessionButton.setEnabled(False)
+                self.sessionTabSessionButton.setEnabled(False)
                 self.addDataButton.setText("Choose Volume From Files")
                 self.addDataButton.setEnabled(True)
 

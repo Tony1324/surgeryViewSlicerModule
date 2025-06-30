@@ -131,29 +131,6 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Create logic class instance
         self.logic = AppleVisionProModuleLogic()
 
-        # When the OpenIGTLinkModule receives messages with a certain device name, it creates texts nodes in the MRML Scene
-        # By creating these nodes first, we can listen to updates set from the Apple Vision Pro
-
-        self.axialText = slicer.vtkMRMLTextNode()
-        self.axialText.SetName("AXIAL")
-        slicer.mrmlScene.AddNode(self.axialText)
-        self.addObserver(self.axialText, self.axialText.TextModifiedEvent, self.setAxialPosition)
-
-        self.coronalText = slicer.vtkMRMLTextNode()
-        self.coronalText.SetName("CORONAL")
-        slicer.mrmlScene.AddNode(self.coronalText)
-        self.addObserver(self.coronalText, self.coronalText.TextModifiedEvent, self.setCoronalPosition)
-
-        self.sagittalText = slicer.vtkMRMLTextNode()
-        self.sagittalText.SetName("SAGITTAL")
-        slicer.mrmlScene.AddNode(self.sagittalText)
-        self.addObserver(self.sagittalText, self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
-
-        self.entitySelection = slicer.vtkMRMLTextNode()
-        self.entitySelection.SetName("ENTITY")
-        slicer.mrmlScene.AddNode(self.entitySelection)
-        self.addObserver(self.entitySelection, self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
-
         # Used for updating cursor
         self.crosshairNode=slicer.util.getNode("Crosshair")
         self.addObserver(self.crosshairNode, slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent, self.onMouseMoved)
@@ -171,6 +148,30 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
 
+    # When the OpenIGTLinkModule receives messages with a certain device name, it creates texts nodes in the MRML Scene
+    # By creating these nodes first, we can listen to updates set from the Apple Vision Pro
+    def instantiateMessageObservers(self):
+
+        self.axialText = slicer.mrmlScene.GetNodesByName("AXIAL").GetItemAsObject(0) or slicer.vtkMRMLTextNode()
+        self.axialText.SetName("AXIAL")
+        slicer.mrmlScene.AddNode(self.axialText)
+        self.addObserver(self.axialText, self.axialText.TextModifiedEvent, self.setAxialPosition)
+
+        self.coronalText = slicer.mrmlScene.GetNodesByName("CORONAL").GetItemAsObject(0) or slicer.vtkMRMLTextNode()
+        self.coronalText.SetName("CORONAL")
+        slicer.mrmlScene.AddNode(self.coronalText)
+        self.addObserver(self.coronalText, self.coronalText.TextModifiedEvent, self.setCoronalPosition)
+
+        self.sagittalText = slicer.mrmlScene.GetNodesByName("SAGITTAL").GetItemAsObject(0) or slicer.vtkMRMLTextNode()
+        self.sagittalText.SetName("SAGITTAL")
+        slicer.mrmlScene.AddNode(self.sagittalText)
+        self.addObserver(self.sagittalText, self.sagittalText.TextModifiedEvent, self.setSagittalPosition)
+
+        self.entitySelection = slicer.mrmlScene.GetNodesByName("ENTITY").GetItemAsObject(0) or slicer.vtkMRMLTextNode()
+        self.entitySelection.SetName("ENTITY")
+        slicer.mrmlScene.AddNode(self.entitySelection)
+        self.addObserver(self.entitySelection, self.entitySelection.TextModifiedEvent, self.setSelectedEntity)
+
     def onCameraMoved(self, *_): 
         if self.connected and self.syncCameraToggle.isChecked():
             self.logic.sendCameraTransform(slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCameraNode").GetCamera().GetModelViewTransformMatrix())
@@ -187,7 +188,6 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     def onYellowSliceChanged(self, *_):
         if self.connected:
             self.logic.sendString(str(slicer.mrmlScene.GetNodeByID("vtkMRMLSliceNodeYellow").GetSliceOffset()), "SAGGITAL")
-
 
     def onMouseMoved(self, observer,eventid):
         if self.connected and self.sendPointerToggle.isChecked():
@@ -208,7 +208,7 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             _models = vtk.vtkIdList()
             if self.session and self.session.geometryNode:
                 shNode = slicer.mrmlScene.GetSubjectHierarchyNode()
-                shNode.GetItemChildren(self.session.geometryNode, _models)
+                shNode.GetItemChildren(shNode.GetItemByDataNode(slicer.mrmlScene.GetNodeByID(self.session.geometryNode)), _models)
             for i in range(_models.GetNumberOfIds()):
                 models.append(shNode.GetItemDataNode(_models.GetId(i)))
 
@@ -255,14 +255,15 @@ class AppleVisionProModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic.sendString("CLEAR", "CLEAR")
     
     def onDisconnect(self, *_) -> None:
-            self.connected = False
-            # self.logic.close()
-            self.connect_button.setText("Connect")
-            self.dataContainer.setEnabled(False)
-            self.status_label.setText("Status: Not Connected")
+        self.connected = False
+        # self.logic.close()
+        self.connect_button.setText("Connect")
+        self.dataContainer.setEnabled(False)
+        self.status_label.setText("Status: Not Connected")
 
     def onConnection(self, *_) -> None:
         self.connected = True
+        self.instantiateMessageObservers()
         self.status_label.setText("Status: CONNECTED")
         self.connect_button.setText("Disconnect")
         self.dataContainer.setEnabled(True)
