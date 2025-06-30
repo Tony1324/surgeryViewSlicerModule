@@ -350,8 +350,8 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentationEditorLayout.addWidget(self.segmentationEditorUI)
 
         segmentationEditorLayout.addStretch(1)
-        nextButton = qt.QPushButton("Submit Edits")
-        nextButton.setStyleSheet("font-weight: bold; font-size: 20px")
+        nextButton = qt.QPushButton("Submit Edits and Generate Models")
+        nextButton.setStyleSheet("font-weight: bold; font-size: 20px; background-color:rgb(50,200,100)")
         nextButton.clicked.connect(self.onFinishSegmentation)
         segmentationEditorLayout.addWidget(nextButton)
 
@@ -1015,6 +1015,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         # so that when the scene is saved and reloaded, these settings are restored.
         self.setParameterNode(self.logic.getParameterNode())
         self.onParameterNodeModified()
+        self.updateGeometryModels()
 
     def setParameterNode(self, parameterNode: SegmentationsHelperParameterNode) -> None:
         if self._parameterNode:
@@ -1031,12 +1032,13 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         if self.hasActiveSession():
             if self._parameterNode.activeSession != self._parameterNode.previousActiveSession:
                 self.showSession(self._parameterNode.sessions[self._parameterNode.activeSession])
-                self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
-                self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-                self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
-
                 self._parameterNode.previousActiveSession = self._parameterNode.activeSession
                 self.updateGeometryModels()
+            
+            self.sessionListSelector.setCurrentRow(self._parameterNode.activeSession)
+            self.sessionNameInput.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)
+            self.sessionTitle.setText(self._parameterNode.sessions[self._parameterNode.activeSession].name)    
+                
             
             self.visionProConnectionWidget.self().session = self.getActiveSession()
 
