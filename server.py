@@ -5,6 +5,7 @@ pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
 
 def summarizeText(text):
     messages = [
+        {"role": "system", "content": "You are part of a medical software, a visualization tool that helps surgeons explain to patients their upcoming procedure. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of important questions in detail together with their responses. If the transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting."},
         {"role": "user", "content": text},
     ]
     response = pipe(messages, max_new_tokens=1000)

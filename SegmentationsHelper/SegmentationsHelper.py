@@ -550,7 +550,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentation = self.getSegmentationNodeFromSession(session)
         segmentation.GetDisplayNode().SetVisibility3D(False)
         #by default, generated segmentations are very blocky, this makes them look less like voxels
-        segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","1.0")
+        segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","0.5")
         segmentation.GetSegmentation().CreateRepresentation(vtkSegmentationCore.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation, exportFolderItemId)
         self.updateGeometryModels()
@@ -1126,7 +1126,7 @@ class SegmentationsHelperLogic(ScriptedLoadableModuleLogic):
     
     def sendTranscriptForSummary(self, text, ip):
         headers = {'Content-Type': 'text/plain'}
-        response = requests.post("http://"+ip+":18944",data="You are part of a medical software, a visualization tool that helps surgeons explain their own anatomy to patients. You are provided a transcript of their conversation during a session. Provide a brief paragraph summary of the conversation, then generate a list of questions of importance in detail and their responses. If transcript is too short to provide sufficient summary or questions, reduce length of output and do not speculate. Output in valid markdown without other formatting: " + text,headers=headers)
+        response = requests.post("http://"+ip+":18944",data=text,headers=headers)
         print(response.content)
         return response.content
 
