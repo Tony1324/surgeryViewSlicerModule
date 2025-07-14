@@ -1,7 +1,7 @@
 from transformers import pipeline
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
+pipe = pipeline("text-generation", model="mistralai/Mistral-7B-Instruct-v0.3")
 
 def summarizeText(text):
     messages = [
