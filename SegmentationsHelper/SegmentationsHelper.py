@@ -550,7 +550,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         segmentation = self.getSegmentationNodeFromSession(session)
         segmentation.GetDisplayNode().SetVisibility3D(False)
         #by default, generated segmentations are very blocky, this makes them look less like voxels
-        segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","0.5")
+        segmentation.GetSegmentation().SetConversionParameter("Smoothing factor","0.7")
         segmentation.GetSegmentation().CreateRepresentation(vtkSegmentationCore.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
         slicer.modules.segmentations.logic().ExportAllSegmentsToModels(segmentation, exportFolderItemId)
         self.updateGeometryModels()
@@ -646,7 +646,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
 
     def performSegmentation(self):
         # try:
-        model = "deepedit"
+        model = "swin_unetr_btcv_segmentation"
         image_file = self.getActiveSessionVolumeNode().GetName()
         params = self.monailabel.getParamsFromConfig("infer", model)
 
@@ -795,7 +795,7 @@ class SegmentationsHelperWidget(ScriptedLoadableModuleWidget, VTKObservationMixi
         try:
             qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
-            model = "deepedit"
+            model = "swin_unetr_btcv_segmentation"
 
             params = self.monailabel.getParamsFromConfig("train", model)
 
